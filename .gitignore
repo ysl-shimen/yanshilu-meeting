@@ -5,3 +5,5 @@ pnpm_lock.json
 server/config/*.json
 test
 *.log
+*.tmp
+*.tar.gz
