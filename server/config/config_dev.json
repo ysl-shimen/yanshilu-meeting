@@ -1,0 +1,22 @@
+{
+  "rtc": {
+    "appId": "yat86lo5",
+    "appKey": "${appKey}",
+    "templateId": "${templateId}",
+    "accessKeyId": "${accessKeyId}",
+    "accessKeySecret": "${accessKeySecret}",
+    "storageConfig": {
+      "vendor": 1,
+      "region": 1,
+      "bucket": "ysl-rtc"
+    },
+    "configType": "access_key"
+  },
+  "oss": {
+    "region": "oss-cn-shanghai",
+    "bucket": "ysl-rtc",
+    "domain": "https://oss.yanshilu.com"
+  },
+  "backendHost": "https://test.yanshilu.com",
+  "port": 3003
+}

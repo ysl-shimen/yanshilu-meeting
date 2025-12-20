@@ -1,0 +1,9 @@
+# 忽略敏感配置文件
+server/config/*.json
+.env
+.env.*
+# 忽略其他冗余/敏感文件
+node_modules/
+dist/
+logs/
+src/*.json

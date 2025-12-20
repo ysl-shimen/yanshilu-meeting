@@ -1,0 +1,655 @@
+.hideBar {
+  height: 0 !important;
+  overflow: hidden;
+  transform: translateY(100%);
+  padding: 0 !important;
+}
+
+.toolBarWrap {
+  background-color: #fff;
+  width: 100%;
+  min-height: 56px;
+  position: fixed;
+  bottom: 0;
+  transition: height 0.3s ease, transform 0.3s ease;
+  z-index: 10;
+  box-shadow: 0 -2px 10px rgba(20, 14, 14, 0.2);
+  padding: 4px 10px;
+  
+  // 默认桌面端布局：横向排列
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: nowrap;
+  
+  // 1. 左侧占位符
+  .bar-placeholder {
+    flex: 1;
+    min-width: 0;
+  }
+
+  // 2. 中间工具栏
+  .bar-tools {
+    flex: 0 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    
+    :deep(.ant-space) {
+      gap: 0 !important;
+      flex-wrap: nowrap;
+    }
+  }
+
+  // 3. 右侧操作区
+  .bar-actions {
+    flex: 1;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    min-width: 0;
+  }
+  
+  // 按钮基础样式
+  .toolBtn {
+    display: flex;
+    flex-direction: column;
+    cursor: pointer;
+    justify-content: center;
+    align-items: center;
+    color: rgba(23, 26, 29, 0.85);
+    transition: all 0.2s ease;
+    width: 72px;
+    height: 48px;
+    font-size: 18px;
+    
+    & > span:last-of-type {
+      font-size: 12px;
+      opacity: 0.56;
+      margin-top: 2px;
+      white-space: nowrap;
+    }
+    
+    &:hover {
+      background-color: #dcdcdc;
+      border-radius: 4px;
+    }
+  }
+  
+  .buttonGroup {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    button {
+      white-space: nowrap;
+    }
+  }
+
+  // --- 响应式适配 Start ---
+
+  // 1. 平板/笔记本 (1024px以下)
+  @media screen and (max-width: 1024px) {
+    .toolBtn {
+      width: 60px;
+      font-size: 16px;
+      & > span:last-of-type { transform: scale(0.95); }
+    }
+  }
+
+  // 2. 窄屏平板 (768px以下)
+  @media screen and (max-width: 768px) {
+    .toolBtn {
+      width: 50px;
+      height: 44px;
+      & > span:last-of-type {
+        font-size: 10px;
+        transform: scale(0.85);
+        margin-top: 0;
+      }
+    }
+    .buttonGroup {
+      gap: 6px;
+      button { padding: 4px 10px; font-size: 13px; }
+    }
+  }
+
+  // 3. 手机端布局 (575px以下) - 重点修改：改为双行布局
+  @media screen and (max-width: 575px) {
+    // 容器改为纵向排列
+    flex-direction: column;
+    height: auto !important; // 高度自适应
+    padding: 10px 0; // 增加上下内边距
+    
+    // 适配 iPhone 底部安全区 (Home Indicator)
+    padding-bottom: calc(10px + constant(safe-area-inset-bottom));
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+
+    // 隐藏左侧占位符
+    .bar-placeholder {
+      display: none;
+    }
+
+    // 第一行：工具图标
+    .bar-tools {
+      width: 100%;
+      justify-content: center; // 整体居中
+      margin-bottom: 12px; // 与下方按钮拉开距离
+      
+      // 让图标在这一行里均匀分布，或者紧凑居中
+      :deep(.ant-space) {
+        width: 100%;
+        justify-content: space-evenly; // 均匀分布图标
+        gap: 0 !important;
+      }
+
+      .toolBtn {
+        width: auto; // 宽度自适应
+        flex: 1; // 平分宽度
+        max-width: 60px; // 限制最大宽度，防止太散
+        height: auto;
+        min-height: 44px;
+        
+        // 手机端图标稍微调大一点点，方便点击
+        font-size: 18px; 
+        
+        & > span:last-of-type {
+          transform: scale(0.85);
+          margin-top: 2px;
+        }
+      }
+    }
+
+    // 第二行：操作按钮
+    .bar-actions {
+      width: 100%;
+      justify-content: center; // 按钮居中
+      flex: 0 0 auto;
+      
+      .buttonGroup {
+        width: 80%; // 按钮组宽度占屏幕80%，看起来更协调
+        justify-content: center;
+        gap: 15px; // 两个按钮之间拉开点距离
+        
+        button {
+          height: 36px; // 按钮加高，更适合手指点击
+          font-size: 14px;
+          padding: 0 20px;
+          flex: 1; // 两个按钮平分宽度（可选）
+          max-width: 140px;
+        }
+      }
+    }
+  }
+  // --- 响应式适配 End ---
+}
+
+// --- 以下为原有样式，保持不变 ---
+
+.mainView {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  & .higherMainUserInfo {
+    bottom: 60px;
+  }
+  :deep(.ant-avatar) {
+    display: none;
+  }
+  &.avatar {
+    :deep(.ant-avatar) {
+      width: 120px;
+      height: 120px;
+    }
+  }
+  :deep(video) {
+    object-fit: contain !important;
+    width: 100% !important;
+    height: 100% !important;
+    background-color: #dde1e5;
+  }
+}
+
+.confInfo {
+  position: absolute;
+  top: 0;
+  z-index: 11;
+  font-size: 12px;
+  padding-left: 4px;
+  color: rgba(23, 26, 29, 0.85);
+  left: 0;
+  flex-direction: column;
+  // 手机端适配
+  @media screen and (max-width: 575px) {
+    padding-left: 0;
+    zoom: 0.83;
+  }
+}
+
+.blockWrapper {
+  width: 100%;
+  height: 100%;
+  overflow-x: hidden;
+  flex-direction: column;
+  background-color: #dce1e6;
+  & > div:first-of-type {
+    height: 24px;
+    width: 100%;
+    position: absolute;
+    background-color: #fff;
+    z-index: 50;
+    transition: height 0.5s ease;
+    overflow: hidden;
+    & > span:first-of-type {
+      position: relative;
+      left: 4px;
+      width: 134px;
+      line-height: 24px;
+    }
+  }
+  
+  &.standardMode {
+    .smallVideoItems.standard {
+      position: fixed;
+      top: 24px;
+      right: 20px;
+      z-index: 10;
+      padding-top: 0;
+      min-height: auto;
+      max-height: none;
+      padding-left: 0;
+      width: auto;
+      background-color: transparent;
+      
+      .smallVideoItem {
+        width: 184.889px;
+        border-radius: 10px;
+        height: 104px;
+        border: 0px solid #FFFFFF;
+        margin-top: 10px;
+      }
+    }
+    
+    .mainView {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1;
+    }
+  }
+}
+
+.fullscreen {
+  position: absolute;
+  right: 24px;
+  top: 2px;
+  align-items: center;
+  cursor: pointer;
+  align-items: center;
+  color: var(--common_level1_base_color, #171a1d);
+  font-size: 14px;
+  & span {
+    margin-right: 4px;
+  }
+  .anticon {
+    font-size: 16px;
+  }
+}
+
+.viewConfigHot {
+  padding: 2px 12px;
+  border-radius: 6px;
+  &:hover {
+    background-color: #eaecef;
+  }
+}
+
+.smallVideoItems {
+  padding-bottom: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  overflow-y: auto;
+  
+  @media screen and (max-width: 575px) {
+    padding-left: 0;
+  }
+}
+
+.grid {
+  background-color: #eaecef;
+  align-content: center;
+  height: 100%;
+  & .speaking {
+    &::after {
+      border-radius: 0;
+    }
+  }
+}
+
+.standard {
+  position: fixed;
+  top: 24px;
+  right: 20px;
+  z-index: 10;
+  padding-top: 0;
+  min-height: auto;
+  max-height: none;
+  padding-left: 0;
+  width: auto;
+  & .smallVideoItem {
+    width: 184.889px;
+    border-radius: 0;
+    height: 104px;
+    border: none;
+    margin-bottom: 10px;
+  }
+}
+
+.smallVideoItem {
+  position: relative;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  display: flex;
+  overflow: hidden;
+  background-color: #dde1e5;
+  transition: all 0.3s ease; // 添加平滑过渡效果
+
+  // 1. 圆角：让画面看起来更像一个独立的卡片
+  border-radius: 8px; 
+  
+  // 2. 边框：使用半透明白色边框，增加精致感
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  
+  // 3. 外阴影：这是产生“立体/悬浮”感的关键
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+
+  // 1. 默认桌面端尺寸 (大屏)
+  width: 185px;
+  height: 104px;
+
+  // 2. 平板/笔记本 (宽度 < 1024px)
+  @media screen and (max-width: 1024px) {
+    width: 160px;
+    height: 90px;
+  }
+
+  // 3. 手机端 (宽度 < 575px)
+  @media screen and (max-width: 575px) {
+    width: 130px; // 手机上改小，避免遮挡
+    height: 74px; // 保持 16:9 比例
+    
+    // 手机端圆角稍微改小一点
+    border-radius: 6px;
+  }
+
+   // 当处于拖拽/悬浮状态时，强制应用当前媒体查询的宽度
+  // 配合 JS 去掉行内样式 width 后，这里必须加上 !important 或者是高优先级
+  &.is-fixed {
+    // 这里的宽高会自动继承上面的媒体查询设置
+    // 只要 JS 不设置行内 style 的 width/height，这里就会生效
+    z-index: 1;
+  }
+
+  & > svg, & > .anticon {
+    position: absolute;
+    right: 2px;
+    top: 2px;
+    z-index: 2;
+  }
+  
+  &.fullscreen-user {
+    border: 2px solid #1890ff;
+    box-shadow: 0 0 8px rgba(24, 144, 255, 0.6);
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    // 2. 内阴影：让边缘看起来有厚度
+    box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.05);
+    
+    border-radius: inherit; // 继承父元素圆角
+    box-sizing: border-box;
+    pointer-events: none; // 关键：防止遮挡鼠标点击事件
+    z-index: 1;
+  }
+}
+
+.dragging {
+  opacity: 0.5;
+  transform: scale(0.95);
+}
+
+.sidebar-smallview-container {
+  display: inline-block;
+  margin: 5px;
+  cursor: move;
+  width: 120px;
+  height: 90px;
+  border-radius: 4px;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.sidebar-smallview-container:active {
+  opacity: 0.7;
+  transform: scale(0.98);
+}
+
+.avatar {
+  :deep(.ant-avatar) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  :deep(video) {
+    display: none;
+  }
+}
+
+.camera {
+  :deep(.ant-avatar) {
+    display: none!important;
+  }
+  :deep(video) {
+    border-radius: 6px;
+    display: inline-block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+.smallViewStatus, .pip {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  padding: 0 4px;
+  max-width: 110px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  border-radius: 4px;
+  background-color: hsla(0,0%,100%,0.8);
+  z-index: 1;
+  height: 22px;
+  line-height: 22px;
+  transition: bottom 0.5s ease;
+  & > span:last-of-type {
+    font-size: 12px;
+    margin-left: 2px;
+    color: #171a1d;
+  }
+}
+
+.viewConfigContainer {
+  margin-right: 20px;
+}
+
+.stopShare {
+  & :global(.deviceIcon) {
+    color: #fb602d !important;
+  }
+}
+
+.smallViewActions {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background-color: hsla(0,0%,100%,0.8);
+  cursor: pointer;
+  z-index: 1;
+  height: 22px;
+  line-height: 22px;
+}
+
+.actionsItem {
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.userId {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  font-size: 12px;
+  color: #fb602d;
+  z-index: 2;
+}
+
+.speaking {
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    border-radius: 6px;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 2px solid green;
+  }
+}
+
+.disconnectIconWrapper {
+  margin: 0 8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  overflow: hidden;
+  :hover {
+    background-color: var(--btm-toolbar-btn-bg-color);
+    cursor: pointer;
+  }
+  .disconnectIcon {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.cardWrapper {
+  width: 100%;
+  height: 100%;
+  min-width: 240px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  .labelWrap {
+    flex-shrink: 1;
+    flex-grow: 0;
+    display: flex;
+    flex-direction: column;
+    margin-right: 10px;
+    .label {
+      margin: 8px 0;
+    }
+  }
+  .valueWrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    .value {
+      margin: 8px 0;
+      white-space: nowrap;
+    }
+  }
+}
+.networkIcon {
+  width: 24px;
+  height: 24px;
+}
+
+.networkTrigger {
+  margin-left: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+}
+
+.encodeLayers {
+  position: absolute;
+  right: 4px;
+  top: 2px;
+  font-size: 12px;
+}
+.sendLayers {
+  position: absolute;
+  right: 4px;
+  top: 16px;
+  font-size: 12px;
+}
+.resolution {
+  position: absolute;
+  right: 4px;
+  top: 30px;
+  color: limegreen;
+  font-size: 12px;
+}
+
+.viewConfig {
+  padding: 0 4px;
+  color: #171a1d;
+  & .ant-radio-wrapper {
+    height: 30px;
+    line-height: 30px;
+    display: flex;
+  }
+  & .ant-divider-horizontal {
+    margin: 4px 0;
+  }
+  & .anticon {
+    font-size: 16px;
+  }
+  & > div {
+    cursor: pointer;
+    width: 100%;
+    text-align: center;
+  }
+}
+
+.disconnected {
+  font-size: 24px;
+}
