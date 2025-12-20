@@ -1,0 +1,6 @@
+node_modules
+dist
+package_lock.json
+pnpm_lock.json
+server/config/*.json
+test
