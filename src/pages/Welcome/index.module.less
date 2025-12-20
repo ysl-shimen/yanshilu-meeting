@@ -1,0 +1,334 @@
+// 响应式设计 - 适配不同屏幕尺寸
+@mobile: ~"screen and (max-width: 768px)";
+@tablet: ~"screen and (min-width: 769px) and (max-width: 1024px)";
+@desktop: ~"screen and (min-width: 1025px)";
+
+.wrap {
+  width: 100%;
+  min-height: 100vh;
+  padding: 0px;
+  background: #f5f7fa;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  
+  @media @mobile {
+    padding: 16px;
+    min-height: 100vh; /* 确保在移动设备上有最小高度 */
+    background: #f5f7fa; /* 确保移动端背景色 */
+  }
+}
+
+// 头部区域 - 左上角和右上角固定位置
+.demoTitle {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  z-index: 10;
+  
+  @media @mobile {
+    position: relative;
+    top: auto;
+    left: auto;
+    text-align: center;
+    margin-bottom: 12px;
+  }
+}
+
+.testNetwork {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  z-index: 10;
+  
+  @media @mobile {
+    position: relative;
+    top: auto;
+    right: auto;
+    margin-bottom: 16px;
+    width: 100%;
+    max-width: 200px;
+  }
+}
+
+// 主要内容区域 - 整体居中
+.main {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: flex-start; // 保持顶部对齐
+  gap: 30px;
+  width: 100%;
+  margin: auto;
+  max-width: 1200px;
+  
+  @media @tablet {
+    gap: 25px;
+    max-width: 95%;
+  }
+  
+  @media @mobile {
+    flex-direction: column;
+    gap: 20px;
+    margin: 20px 0;
+    align-items: center;
+  }
+}
+
+// 预览区域 - 使用原始大小和比例
+.previewWrap {
+  width: 800px;
+  height: 450px; // 保持16:9的比例
+  border-radius: 12px;
+  background: #dce1e6;
+  box-shadow: 0px 0px 60px 0px rgba(126, 153, 178, 0.3);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  position: relative;
+  
+  @media @tablet {
+    width: 600px;
+    height: 338px; // 保持16:9比例
+  }
+  
+  @media @mobile {
+    width: 100%;
+    height: 35vh;
+    min-height: 250px;
+  }
+
+  &>div:first-of-type {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    
+    // 只让视频占满容器，头像保持固定尺寸
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    
+    // 头像不使用100%宽高，保持自身比例
+    .ant-avatar {
+      object-fit: cover;
+    }
+  }
+
+  & .camera {
+    :deep(.ant-avatar) {
+      display: none;
+    }
+
+    :deep(video) {
+      display: inline-block;
+    }
+  }
+
+  & .avatar {
+    :deep(.user-avatar) {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 120px;
+      height: 120px;
+      font-size: 40px;
+      // 修复：保持原来的灰色背景和圆形
+      background: #a5a9ac !important;
+      color: #dce1e6!important;
+      border-radius: 50% !important; // 强制圆形
+      box-sizing: border-box;
+      margin: 20px; // 远离边缘，确保完全包含在矩形内
+      
+      // 确保头像内容居中且不拉伸
+      & img {
+        object-fit: cover;
+        border-radius: 50% !important;
+      }
+      
+      @media @mobile {
+        width: 80px;
+        height: 80px;
+        font-size: 28px;
+        margin: 15px;
+        border-width: 3px;
+      }
+    }
+
+    :deep(video) {
+      display: none;
+    }
+  }
+}
+
+// 加入面板 - 设置最小高度与Preview相同，但允许增加高度
+.joinPanel {
+  width: 380px;
+  min-height: 450px; // 最小高度与Preview相同
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0px 0px 60px 0px rgba(126, 153, 178, 0.3);
+  display: flex;
+  flex-direction: column;
+  
+  @media @tablet {
+    width: 320px;
+    min-height: 338px; // 与平板上Preview高度一致
+  }
+  
+  @media @mobile {
+    width: 100%;
+    max-width: 100%;
+    min-height: auto;
+  }
+
+  :deep(.ant-card) {
+    border-radius: 12px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  :deep(.ant-card-body) {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+  }
+  
+  :deep(.ant-form) {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  // 确保表单内容区域可以滚动
+  :deep(.ant-form .ant-form-item:not(.joinButton):not(.notice)) {
+    flex-shrink: 0;
+  }
+  
+  // 加入按钮和通知放在底部
+  :deep(.joinButton) {
+    margin-top: auto;
+    margin-bottom: 8px;
+  }
+  
+  :deep(.notice) {
+    margin-bottom: 0;
+  }
+
+  // 加入课堂按钮宽度设置为90%
+  :deep(.joinButton .ant-form-item-control) {
+    .ant-btn {
+      width: 100% !important;
+      margin: 0 auto;
+      display: block;
+    }
+  }
+
+  // 通知文字处理
+  :deep(.notice .ant-form-item-control) {
+    .ant-form-item-control-input-content {
+      text-align: center;
+      font-size: 14px;
+      color: #7f8c8d;
+      white-space: nowrap;
+      
+      @media screen and (max-width: 1400px) {
+        white-space: normal;
+      }
+    }
+  }
+}
+
+// 设备控制栏
+.devices {
+  height: 40px;
+  background-color: #ffffff;
+  position: absolute;
+  bottom: 16px;
+  display: flex;
+  width: 160px;
+  flex-direction: row;
+  align-items: center;
+  border-radius: 6px;
+  justify-content: center;
+  z-index: 5;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  
+  @media @mobile {
+    bottom: 12px;
+    width: 140px;
+    height: 36px;
+  }
+}
+
+.deviceColumn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+}
+
+// 移动端特定样式
+@media @mobile {
+  .previewWrap {
+    height: 35vh;
+    min-height: 200px;
+  }
+
+  .avatar {
+    :deep(.user-avatar) {
+      width: 80px;
+      height: 80px;
+      margin: 15px;
+    }
+  }
+  
+  // 确保在移动端背景始终是白色
+  .wrap {
+    background: #f5f7fa;
+  }
+}
+
+// 超小屏幕手机
+@media screen and (max-width: 375px) {
+  .previewWrap {
+    height: 30vh;
+    min-height: 180px;
+  }
+  
+  .avatar {
+    :deep(.user-avatar) {
+      width: 70px;
+      height: 70px;
+      margin: 10px;
+      font-size: 24px;
+    }
+  }
+  
+  .devices {
+    width: 120px;
+    height: 32px;
+    bottom: 8px;
+  }
+}
+
+// 独立播放区域
+.standalone-playback-section {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 20px;
+  
+  @media @mobile {
+    padding: 16px;
+  }
+}

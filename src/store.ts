@@ -1,0 +1,384 @@
+import DingRTC from 'dingrtc';
+import { defineStore } from 'pinia';
+import { isIOS, isMac, isMobile, isWeixin, logLevel, parseSearch } from './utils/tools';
+import configJson from '~/config.json';
+import { RtcWhiteboard, WhiteboardManager } from '@dingrtc/whiteboard';
+import ASR from 'dingrtc-asr';
+import RTM, { RTMMessage, SessionUser } from '@dingrtc/rtm';
+import { markRaw } from 'vue';
+
+// 定义类型别名，避免直接从 dingrtc 导入不存在的类型
+type Group = any;
+type GroupPropertyUpdateTypes = any;
+type GroupUser = any;
+type CameraVideoTrack = any;
+type LocalAudioTrack = any;
+type LocalVideoTrack = any;
+type MicrophoneAudioTrack = any;
+type RemoteAudioTrack = any;
+type RemoteUser = any;
+type VideoDimension = any;
+type NetworkQuality = any;
+type RemoteVideoTrack = any;
+type DingRTCClient = any;
+type OptimizationMode = any;
+
+const enable2K = parseSearch('2k') === 'true';
+
+DingRTC.setLogLevel(logLevel);
+
+interface Resolution {
+  width: number;
+  height: number;
+}
+
+export interface RTCStats {
+  localCameraFPS?: number;
+  localCameraResolution?: Resolution;
+  localCameraBitrate?: number;
+  localScreenFPS?: number;
+  localScreenResolution?: Resolution;
+  localScreenBitrate?: number;
+  localBitrate?: number;
+  remoteBitrate?: number;
+  remoteCameraFPS?: number;
+  remoteCameraResolution?: Resolution;
+  remoteCameraBitrate?: number;
+  remoteScreenFPS?: number;
+  remoteScreenResolution?: Resolution;
+  localAudioBitrate?: number;
+  localAudioLevel?: number;
+  remoteCamerateBitrate?: number;
+  remoteScreenBitrate?: number;
+  remoteAudioBitrate?: number;
+  remoteAudioLevel?: number;
+  loss?: number;
+  bwe?: number;
+  rtt?: number;
+  encodeCameraLayers?: number;
+  encodeScreenLayers?: number;
+  sendCameraLayers?: number;
+  sendScreenLayers?: number;
+  uplinkProfile?: string;
+  downlinkProfile?: string;
+  // uid#'auxiliary' | 'camera';
+  resolutionMap: Map<string, string>;
+}
+
+interface IDeviceInfo {
+  cameraId: string;
+  speakerId: string;
+  micId: string;
+  screenFrameRate: number;
+  screenDimension: VideoDimension;
+  cameraFrameRate: number;
+  cameraDimension: VideoDimension;
+  screenMaxBitrate: number;
+  cameraMirror: boolean;
+  cameraMaxBitrate: number;
+  cameraList: MediaDeviceInfo[];
+  speakerList: MediaDeviceInfo[];
+  micList: MediaDeviceInfo[];
+  cameraOptimization: OptimizationMode;
+  screenOptimization: OptimizationMode;
+  facingMode: 'user' | 'environment';
+}
+
+interface TrackStats {
+  mic?: boolean;
+  camera?: boolean;
+  screen?: boolean;
+  hasCamera?: boolean;
+  hasScreen?: boolean;
+  subscribedCamera?: boolean;
+  subscribedScreen?: boolean;
+}
+
+export interface IChannelInfo {
+  mcuAudioTrack: RemoteAudioTrack;
+  remoteUsers: RemoteUser[];
+  speakers?: string[];
+  subscribeAllVideo?: boolean;
+  groups: Group[];
+  subscribeAudio: string;
+  cameraTrack: CameraVideoTrack;
+  micTrack?: MicrophoneAudioTrack;
+  screenTrack?: LocalVideoTrack;
+  customVideoTrack?: LocalVideoTrack;
+  customAudioTrack?: LocalAudioTrack;
+  publishedTracks?: Set<string>;
+  timeLeft?: number;
+  isWhiteboardOpen: boolean;
+  whiteboard: RtcWhiteboard;
+  whiteboardManager: WhiteboardManager;
+  networkQuality: NetworkQuality;
+  rtcStats: RTCStats;
+  defaultRemoteStreamType: string;
+  remoteUserNetworkQualitys: { [key: string]: number };
+  mainViewUserId: string;
+  mainViewPreferType: 'camera' | 'auxiliary';
+  mode: 'grid' | 'standard';
+  trackStatsMap: Map<string, TrackStats>;
+  annotation: RtcWhiteboard;
+  annotationId: string;
+  enableRTM: boolean;
+}
+
+interface IAsrInfo {
+  asrTaskId: string;
+  asr: ASR;
+  originLang: string;
+  transLang: string;
+  dualLang: boolean;
+  enabled: boolean;
+  functionNumber: number;
+}
+
+interface IGlobalFlag {
+  joined: boolean;
+  immersive: boolean;
+  isMobile: boolean;
+  hideLog: boolean;
+  env: string;
+  isIOS: boolean;
+  isWeixin: boolean;
+  isMac: boolean;
+}
+
+interface IRTMMessage extends RTMMessage {
+  timestamp: number;
+}
+
+export interface IRTMSession {
+  members: SessionUser[];
+  sessionId: string;
+  messages: IRTMMessage[];
+}
+
+interface IRTMInfo {
+  enabled: boolean;
+  rtm: RTM;
+  sessions: IRTMSession[];
+  activeSessionId: string;
+}
+
+const client = DingRTC.createClient();
+// @ts-ignore
+window.client = client;
+
+const whiteboardManager = markRaw(new WhiteboardManager());
+// 白板和 rtc 共享同一个入会连接
+client.register(whiteboardManager);
+
+export const useClient = (): DingRTCClient => {
+  const store = useInnerClientStore();
+  return store.client;
+};
+
+export const useInnerClientStore: any = defineStore('ClientStore', {
+  state: () => ({
+    client,
+  }),
+});
+
+export const useCurrentUserInfo = defineStore('ICurrentUserInfo', {
+  state: () => ({
+    appId: parseSearch('appId') || configJson.appId || '',
+    userId: parseSearch('userId') || configJson.userId || `${Math.ceil(Math.random() * 10000)}`,
+    userName:
+      parseSearch('userName') || configJson.userName || `Web-${Math.ceil(Math.random() * 100)}`,
+    channel:
+      parseSearch('channelId') || configJson.channelId || `${Math.ceil(Math.random() * 10000)}`,
+    duration: '',
+    delay: '',
+    token: configJson.token || '',
+    taskId: '',
+    avatar: '',
+    courseName: '',
+    courseCode: '',
+    teacherNickname: '',
+    studentNickname: '',
+    lessonNumber: '',
+    totalLessons: '',
+  }),
+});
+
+let defaultCameraDimension: VideoDimension = 'VD_1920x1080';
+if (isIOS() || (!isMobile() && !isMac())) {
+  defaultCameraDimension = 'VD_1280x720';
+}
+if (enable2K) {
+  defaultCameraDimension = 'VD_2560x1440';
+}
+export const useDeviceInfo = defineStore('IDeviceInfo', {
+  state: (): IDeviceInfo => ({
+    cameraId: '',
+    micId: '',
+    speakerId: '',
+    cameraList: [],
+    speakerList: [],
+    micList: [],
+    cameraMirror: false,
+    cameraFrameRate: 15,
+    cameraMaxBitrate: undefined,
+    screenOptimization: 'detail',
+    cameraOptimization: 'balanced',
+    // cameraDimension: defaultCameraDimension,
+    cameraDimension: 'VD_640x480',
+    screenFrameRate: 5,
+    screenMaxBitrate: undefined,
+    screenDimension: 'VD_1280x720', //屏幕共享分辨率，默认'VD_1920x1080',
+    facingMode: 'user',
+  }),
+  getters: {
+    cameraEnable(): boolean {
+      const channelInfo = useChannelInfo();
+      return channelInfo.cameraTrack?.enabled && !channelInfo.cameraTrack?.muted;
+    },
+    micEnable(): boolean {
+      const channelInfo = useChannelInfo();
+      return channelInfo.micTrack?.enabled && !channelInfo.micTrack?.muted;
+    },
+  },
+});
+
+export const useChannelInfo = defineStore('IChannelInfo', {
+  state: (): IChannelInfo => ({
+    cameraTrack: null,
+    screenTrack: null,
+    customVideoTrack: null,
+    customAudioTrack: null,
+    micTrack: null,
+    timeLeft: 0,
+    defaultRemoteStreamType: 'LD', //'FHD',
+    networkQuality: 1,
+    publishedTracks: new Set(),
+    rtcStats: {
+      resolutionMap: new Map(),
+    },
+    mode: 'standard',
+    isWhiteboardOpen: false,
+    mcuAudioTrack: null,
+    remoteUsers: [],
+    groups: [],
+    subscribeAllVideo: true,
+    speakers: [],
+    subscribeAudio: '',
+    remoteUserNetworkQualitys: {},
+    mainViewPreferType: 'auxiliary',
+    mainViewUserId: '',
+    whiteboard: null,
+    whiteboardManager,
+    trackStatsMap: new Map(),
+    annotation: null,
+    annotationId: '',
+    enableRTM: false,
+  }),
+  getters: {
+    allUsers(): RemoteUser[] {
+      const currentUserInfo = useCurrentUserInfo();
+      const list: any = [
+        {
+          userId: currentUserInfo.userId,
+          videoTrack: this.cameraTrack,
+          userName: currentUserInfo.userName,
+          audioMuted: !this.micTrack?.enabled,
+          hasAudio: !!this.micTrack,
+          audioTrack: this.micTrack,
+          hasVideo: !!this.cameraTrack,
+          videoMuted: !this.cameraTrack?.enabled,
+          auxiliaryMuted: !this.screenTrack?.enabled,
+          hasAuxiliary: !!this.screenTrack,
+          auxiliaryTrack: this.screenTrack,
+        },
+        ...this.remoteUsers,
+      ];
+      return list as RemoteUser[];
+    },
+    mainViewUserInfo(): RemoteUser {
+      return this.allUsers.find((user) => user.userId === this.mainViewUserId);
+    },
+    mainViewTrack(): RemoteVideoTrack {
+      const videoTrack = this.mainViewUserInfo?.videoTrack;
+      const auxiliaryTrack = this.mainViewUserInfo?.auxiliaryTrack;
+      return this.mainViewPreferType === 'camera'
+        ? videoTrack || auxiliaryTrack
+        : auxiliaryTrack || videoTrack;
+    },
+    getTrack() {
+      const self = this;
+      return (user: RemoteUser): RemoteVideoTrack => {
+        // 检查轨道是否有效，避免返回无效的轨道对象
+        const videoTrack = (user.videoTrack && !user.videoMuted) ? user.videoTrack : null;
+        const auxiliaryTrack = (user.auxiliaryTrack && !user.auxiliaryMuted) ? user.auxiliaryTrack : null;
+        
+        if (self.mainViewUserId === user.userId && self.mode === 'standard') {
+          return self.mainViewPreferType === 'camera'
+            ? auxiliaryTrack || videoTrack
+            : videoTrack || auxiliaryTrack;
+        }
+        return auxiliaryTrack || videoTrack;
+      };
+    },
+  },
+  actions: {
+    updateTrackStats(uid?: string) {
+      const currentUserInfo = useCurrentUserInfo();
+      const user = this.allUsers.find((item) => item.userId === (uid || currentUserInfo.userId));
+      this.trackStatsMap.set(user.userId, {
+        mic: user.hasAudio && !user.audioMuted,
+        screen: user.hasAuxiliary && !user.auxiliaryMuted,
+        camera: user.hasVideo && !user.videoMuted,
+        hasCamera: user.hasVideo,
+        hasScreen: user.hasAuxiliary,
+        subscribedCamera: !!user.videoTrack,
+        subscribedScreen: !!user.auxiliaryTrack,
+      });
+    },
+    updatePublishedTracks(trackIds: string[], action: 'add' | 'remove') {
+      for (const trackId of trackIds) {
+        if (action === 'add') {
+          this.publishedTracks.add(trackId);
+        } else {
+          this.publishedTracks.delete(trackId);
+        }
+      }
+    },
+  },
+});
+// @ts-ignore
+window.useChannelInfo = useChannelInfo;
+
+export const useAsrInfo = defineStore('IAsrInfo', {
+  state: (): IAsrInfo => ({
+    asrTaskId: '',
+    asr: null,
+    originLang: '',
+    transLang: '',
+    enabled: false,
+    dualLang: false,
+    functionNumber: 1,
+  }),
+});
+
+export const useGlobalFlag = defineStore('IGlobalFlag', {
+  state: (): IGlobalFlag => ({
+    joined: false,
+    immersive: false,
+    isMobile: !!isMobile(),
+    hideLog: logLevel === 'none',
+    env: parseSearch('env') || configJson.env || '',
+    isIOS: !!isIOS(),
+    isMac: isMac(),
+    isWeixin: !!isWeixin(),
+  }),
+});
+
+export const useRTMInfo = defineStore('IRTMInfo', {
+  state: (): IRTMInfo => ({
+    enabled: false,
+    rtm: new RTM({ logLevel: 'debug' }),
+    sessions: [],
+    activeSessionId: '',
+  }),
+});
