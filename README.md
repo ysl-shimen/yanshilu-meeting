@@ -22,13 +22,13 @@ $ npm run build
 ## 5 部署项目
 
 1. 部署前端项目
-(1)备份/var/www/yanshilu-meeting/front目录下的旧文件，包括：assets文件和index.html文件；
-(2)将部署包上传至服务器，将解压后的assets文件和index.html放在/var/www/yanshilu-meeting/front目录下。
+- 备份/var/www/yanshilu-meeting/front目录下的旧文件，包括：assets文件和index.html文件；
+- 将部署包上传至服务器，将解压后的assets文件和index.html放在/var/www/yanshilu-meeting/front目录下。
 2. 部署后端项目
-    (1)备份/var/www/yanshilu-meeting/backend目录下的旧文件；
-    (2) 将server目录下的代码上传到/var/www/yanshilu-meeting/backend文件夹；
-    (3) 执行npm install 下载依赖包；
-    (4) 运行后端项目，第一次启动：执行pm2 start ecosystem.config.js；否则执行：pm2 restart meeting-yanshilu;
+- 备份/var/www/yanshilu-meeting/backend目录下的旧文件；
+- 将server目录下的代码上传到/var/www/yanshilu-meeting/backend文件夹；
+- 执行npm install 下载依赖包；
+- 运行后端项目，第一次启动：执行pm2 start ecosystem.config.js；否则执行：pm2 restart meeting-yanshilu;
 ## 6.项目配置
 - 配置后端访问地址：修改src/config.json文件的APP_SERVER_DOMAIN值为后端部署的域名或者IP地址。
 ```json
