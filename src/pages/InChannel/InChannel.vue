@@ -34,21 +34,8 @@ import {
 } from "~/store";
 import Subtitle from "./components/Subtitle/SubtitleBar.vue";
 import ChatRoom from "./components/ChatRoom/index.vue";
-// 引入录制服务
-import {
-  getRecordInfoByChannelId,
-  createRecordInfo,
-  updateRecordInfo,
-  stopRecording,
-  getRecordFiles,
-} from "~/services/recordService";
-import {
-  startRecording,
-  getCourseSessionByChannel,
-  updateCourseSessionByChannel,
-  recordStatus,
-} from "~/services/recordService";
-import configJson from "~/config.json";
+import { joinMeeting, leaveMeeting } from "~/services/recordService";
+import { getAppConfig } from '~/utils/appConfig';
 
 // 定义类型别名，避免直接从 dingrtc 导入不存在的类型
 type Group = any;
@@ -73,11 +60,6 @@ const { getRtcStats, getRemoteUserNetworkStats } = useNetworkStats();
 const timeLeft = ref(channelInfo.timeLeft - 1);
 const gridHeight = ref(0);
 
-// 录制相关状态
-const isRecording = ref(false);
-const recordInfo = ref<any>(null);
-const recordTimer = ref(0);
-
 const immersiveTimer = ref(0);
 
 // 添加结束会议标记
@@ -93,107 +75,12 @@ const hasHandledLeave = ref(false);
 
 // 处理用户加入逻辑
 const handleUserJoin = async () => {
-  const channelId = currentUserInfo.channel;
-
   try {
-    //查询课程课时信息
-    console.log("开始查询课程课时信息...");
-    const courseSession = await getCourseSessionByChannel(channelId);
-    console.log("课程课时信息:", courseSession);
-    if (courseSession.actual_started_at !== null) {
-      console.log("已经有课时信息，不用更新课时开始信息...");
-    } else {
-      console.log("没有课时信息，开始更新课时开始信息...");
-      await updateCourseSessionByChannel(channelId, {
-        actualStartedAt: new Date(),
-        status: "in_progress",
-      });
-      console.log("更新课时开始信息成功...");
+    const result = await joinMeeting(currentUserInfo.channel);
+    currentUserInfo.taskId = result.taskId;
+    if (result.isRecording) {
+      message.success("录制已开启");
     }
-
-    //检查录制状态：如果正在录制，则不处理
-    console.log("开始查询录制状态...");
-    const records = await getRecordInfoByChannelId(channelId);
-    const recordingTask = records?.find(
-      (record: any) => record.status === "recording"
-    );
-
-    if (recordingTask) {
-      console.log("本地已经存在录制视频任务,从RTC获取录制状态...");
-      const rtcRecordStatus = await recordStatus({
-        channelId,
-        taskId: recordingTask.task_id,
-      });
-
-      if (rtcRecordStatus.body.status === 101) {
-        message.success("已经存在录制视频任务");
-        console.log("RTC正在录制中，本地状态也为录制中，无需启动录制任务...");
-        currentUserInfo.taskId = recordingTask.task_id;
-        return;
-      } else {
-        console.log("RTC已经停止录制，本地状态为录制中，说明上次录制后未更新录制信息...");
-        const taskIds: string[] = [recordingTask.task_id];
-        const taskFiles = await getRecordFiles(
-          currentUserInfo.channel,
-          taskIds,
-          false
-        );
-        if (taskFiles?.body?.items?.length > 0) {
-          console.log(
-            "当前RTC有录制文件，说明上次录制后未更新录制信息，准备更新数据库..."
-          );
-          let updateData: any = {
-            status: "completed",
-          };
-          const fileInfo = taskFiles.body.items[0]; // 取第一个文件信息
-          updateData = {
-            ...updateData,
-            started_at: fileInfo.startTs,
-            ended_at: Date.now(), // 结束时间设为当前时间
-            duration: fileInfo.fileDuration,
-            file_size: fileInfo.fileSize,
-            file_path: fileInfo.filePath,
-          };
-          // 3. 更新数据库中的录制信息
-          console.log("准备更新录制信息到后台...");
-          await updateRecordInfo(recordingTask.task_id, updateData);
-          console.log("更新录制信息到后台成功...");
-        } else {
-          console.log("未获取到录制文件信息...");
-          currentUserInfo.taskId = recordingTask.task_id;
-          return;
-        }
-      }
-    }
-    //检查录制状态：如果没有录制，则新增录制任务，并开启录制
-    console.log("录制任务未运行，准备启动录制...");
-    // 启动阿里云RTC录制
-    const result = await startRecording({
-      channelId: channelId,
-    });
-    message.success("开启录制视频成功");
-    console.log("启动录制成功...");
-
-    //创建录像信息到数据库
-    await createRecordInfo({
-      channel_id: channelId,
-      task_id: result.body.taskId,
-      status: "recording",
-    });
-    console.log(
-      "创建录制记录成功，channelId：" +
-        channelId +
-        "taskId:" +
-        result.body.taskId
-    );
-
-    recordInfo.value = {
-      channel_id: channelId,
-      task_id: result.body.taskId,
-      status: "recording",
-    };
-    isRecording.value = true;
-    currentUserInfo.taskId = result.body.taskId;
   } catch (error) {
     console.error("处理用户加入时出错:", error);
     message.error("处理录制功能时出错");
@@ -201,100 +88,36 @@ const handleUserJoin = async () => {
     // 设置默认主视频为当前用户（无论录制是否成功）
     channelInfo.$patch({
       mainViewUserId: currentUserInfo.userId,
-      mainViewPreferType: "camera", // 默认优先显示摄像头
+      mainViewPreferType: "camera",
     });
   }
 };
 
 // 处理用户离开逻辑
+// 注意：此函数在 connection-state-change reason==='leave' 时触发，
+// 说明 client.leave() 已经执行完毕，此处只需通知后端，不需要再次调用 client.leave()
 const handleUserLeave = async () => {
   console.log("开始执行用户正常退出逻辑...");
   if (hasHandledLeave.value) return; // 防止冲突
 
-  //如果没有在录制，直接返回
-  if (!currentUserInfo.taskId) {
-    return;
-  }
+  hasHandledLeave.value = true;
 
-  console.log("当前用户个数：" + channelInfo.allUsers.length);
-  // 检查是否是最后一个用户
-  if (channelInfo.allUsers.length <= 1) {
-    try {
-      // 1. 停止阿里云RTC录制
-      console.log(
-        "最后一个用户离开，开始停止录制，频道ID：" +
-          currentUserInfo.channel +
-          "任务ID：" +
-          currentUserInfo.taskId
-      );
-      await stopRecording({
-        channelId: currentUserInfo.channel,
-        taskId: currentUserInfo.taskId,
-      });
-      console.log("停止录制成功...");
+  const isLastUser = channelInfo.allUsers.length <= 1;
 
-      // 2. 获取录制文件信息
-      console.log("准备获取录制文件信息...");
-      const taskIds: string[] = [currentUserInfo.taskId];
-      let tryCount = 0;
-      let resCheck;
-      while (tryCount < 5) {
-        resCheck = await getRecordFiles(
-          currentUserInfo.channel,
-          taskIds,
-          false
-        );
-        if (resCheck?.body?.items?.length > 0) {
-          break;
-        }
-        console.log("录制文件未生成，等待1秒后重试...");
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        tryCount++;
-      }
-      //如果有录制文件信息，则更新相关字段
-      if (resCheck?.body?.items?.length > 0) {
-        console.log("获取录制文件信息成功...");
-        // 准备更新数据
-        let updateData: any = {
-          status: "completed",
-        };
-        const fileInfo = resCheck.body.items[0]; // 取第一个文件信息
-        updateData = {
-          ...updateData,
-          started_at: fileInfo.startTs,
-          ended_at: Date.now(), // 结束时间设为当前时间
-          duration: fileInfo.fileDuration,
-          file_size: fileInfo.fileSize,
-          file_path: fileInfo.filePath,
-        };
-        // 3. 更新数据库中的录制信息
-        console.log("准备更新录制信息到后台...");
-        await updateRecordInfo(currentUserInfo.taskId, updateData);
-        message.success("录像信息已经保存");
-      } else {
-        console.log("未能获取到录制文件信息...");
-      }
-
-      // 4.重置状态
-      // 在逻辑最后标记已处理
-      hasHandledLeave.value = true;
-      recordInfo.value = null;
-      isRecording.value = false;
-      currentUserInfo.taskId = "";
-      client.leave();
-    } catch (error) {
-      console.error("停止录制或更新信息时出错:", error);
-      // 更新录制状态为失败
-      if (recordInfo.value && currentUserInfo.taskId) {
-        console.log(
-          "更新录制信息为失败状态，任务ID：" + currentUserInfo.taskId
-        );
-        await updateRecordInfo(currentUserInfo.taskId, {
-          status: "failed",
-          error: "停止录制出错" + error.message || "未知错误",
-        });
-      }
+  try {
+    await leaveMeeting({
+      channelId: currentUserInfo.channel,
+      taskId: currentUserInfo.taskId,
+      userId: currentUserInfo.userId,
+      userCount: channelInfo.allUsers.length,
+    });
+    if (isLastUser && currentUserInfo.taskId) {
+      message.success("停止录像成功");
     }
+  } catch (error) {
+    console.error("退出会议通知后端失败:", error);
+  } finally {
+    currentUserInfo.taskId = "";
   }
 };
 
@@ -314,20 +137,22 @@ const triggerLeaveByBeacon = () => {
     userCount: channelInfo.allUsers.length,
   };
 
-  // 3. 转换为Blob（支持JSON格式，适配Beacon）
-  const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
+  // 3. 转换为 Blob，使用 text/plain 而非 application/json
+  // 原因：sendBeacon 发送 application/json 时浏览器会触发 CORS 预检，
+  // 页面卸载时预检来不及完成导致请求被丢弃；text/plain 是简单请求，无需预检
+  // 后端 server.js 已配置 express.text() 中间件将 text/plain body 解析为 JSON 对象
+  const blob = new Blob([JSON.stringify(data)], { type: "text/plain" });
 
   // 4. 调用后端接口（Beacon保证请求发送成功）
   console.log("准备调用后端接口处理异常退出，参数：" + JSON.stringify(data));
-  const baseUrl = configJson.APP_SERVER_DOMAIN;
-  const isSuccess = navigator.sendBeacon(`${baseUrl}/api/user/leave`, blob);
-  console.log("准备调用后端接口处理异常退出，参数：" + JSON.stringify(data));
+  const baseUrl = getAppConfig().APP_SERVER_DOMAIN;
+  const isSuccess = navigator.sendBeacon(`${baseUrl}/api/meeting/leave`, blob);
+  console.log("Beacon 发送结果：" + isSuccess);
 
   // 5. 兜底：Beacon失败时用同步XHR
   if (!isSuccess) {
     const xhr = new XMLHttpRequest();
-
-    xhr.open("POST", `${baseUrl}/api/user/leave`, false); // 同步请求
+    xhr.open("POST", `${baseUrl}/api/meeting/leave`, false); // 同步请求
     xhr.setRequestHeader("Content-Type", "application/json");
     xhr.send(JSON.stringify(data));
   }
@@ -350,12 +175,88 @@ const handlePageUnload = (event: Event) => {
   }
 };
 
-const hideAfterStill = () => {
+// 顶部栏高度和底部工具栏高度（与 CSS 保持一致）
+const TOP_BAR_HEIGHT = 24;
+const BOTTOM_BAR_HEIGHT = 56;
+
+// 判断当前是否为触摸设备（手机/平板）
+const isTouchDevice = () => window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+
+// ── 桌面端：鼠标交互 ──
+
+// 启动收起定时器（统一入口，方便各处调用）
+const scheduleHide = (delay = 400) => {
   if (immersiveTimer.value) clearTimeout(immersiveTimer.value);
-  globalFlag.$patch({ immersive: false });
   immersiveTimer.value = window.setTimeout(() => {
     globalFlag.$patch({ immersive: true });
-  }, 10000);
+    immersiveTimer.value = 0;
+  }, delay);
+};
+
+// 取消收起定时器并立即显示菜单栏
+const cancelHideAndShow = () => {
+  if (immersiveTimer.value) {
+    clearTimeout(immersiveTimer.value);
+    immersiveTimer.value = 0;
+  }
+  if (globalFlag.immersive) {
+    globalFlag.$patch({ immersive: false });
+  }
+};
+
+// 鼠标在中间视频区域移动：显示菜单栏
+const onWrapperMouseMove = (e: MouseEvent) => {
+  if (isTouchDevice()) return;
+  const winH = window.innerHeight;
+  const y = e.clientY;
+  const inCenter = y > TOP_BAR_HEIGHT && y < winH - BOTTOM_BAR_HEIGHT;
+  if (inCenter) cancelHideAndShow();
+  // 鼠标在 fixed 工具栏上时 mousemove 不会触发，由工具栏自身的 mouseenter/mouseleave 接管
+};
+
+// 鼠标离开整个会议页面（含所有 fixed 子元素之外）：延迟收起
+const onWrapperMouseLeave = () => {
+  if (isTouchDevice()) return;
+  scheduleHide(300);
+};
+
+// 鼠标进入顶部栏或底部工具栏：取消收起，保持显示
+const onBarMouseEnter = () => {
+  if (isTouchDevice()) return;
+  cancelHideAndShow();
+};
+
+// 鼠标离开顶部栏或底部工具栏（移回中间区域或离开页面）：延迟收起
+const onBarMouseLeave = () => {
+  if (isTouchDevice()) return;
+  scheduleHide(400);
+};
+
+// ── 触摸设备：点击中间区域切换显示/隐藏 ──
+
+const onWrapperTap = (e: MouseEvent) => {
+  if (!isTouchDevice()) return;
+  const winH = window.innerHeight;
+  const y = e.clientY;
+  const inCenter = y > TOP_BAR_HEIGHT && y < winH - BOTTOM_BAR_HEIGHT;
+  if (!inCenter) return;
+
+  if (globalFlag.immersive) {
+    // 当前已收起 → 展开，并在 4 秒后自动收起
+    globalFlag.$patch({ immersive: false });
+    if (immersiveTimer.value) clearTimeout(immersiveTimer.value);
+    immersiveTimer.value = window.setTimeout(() => {
+      globalFlag.$patch({ immersive: true });
+      immersiveTimer.value = 0;
+    }, 4000);
+  } else {
+    // 当前已展开 → 立即收起
+    if (immersiveTimer.value) {
+      clearTimeout(immersiveTimer.value);
+      immersiveTimer.value = 0;
+    }
+    globalFlag.$patch({ immersive: true });
+  }
 };
 
 const onFullScreen = () => {
@@ -540,7 +441,8 @@ onMounted(() => {
     }
   );
 
-  document.addEventListener("mousemove", hideAfterStill);
+  // 初始状态收起菜单栏，等鼠标移入中间区域再显示
+  globalFlag.$patch({ immersive: true });
 });
 
 watch(
@@ -565,7 +467,7 @@ onUnmounted(() => {
   clearInterval(rtcStatsTimer.value);
   clearInterval(timeLeftTimer.value);
   clearTimeout(immersiveTimer.value);
-  document.removeEventListener("mousemove", hideAfterStill);
+  // mouseenter/mouseleave 绑定在模板上，无需手动移除
   client.removeAllListeners();
 
   // 移除RTM消息监听器
@@ -730,8 +632,16 @@ watch(
     class="blockWrapper"
     :class="channelInfo.mode === 'standard' ? 'standardMode' : ''"
     ref="wrapRef"
+    @mousemove="onWrapperMouseMove"
+    @mouseleave="onWrapperMouseLeave"
+    @click="onWrapperTap"
   >
-    <Row :class="globalFlag.immersive ? 'hideBar' : ''">
+    <!-- 顶部栏：鼠标悬停时保持显示，离开时延迟收起 -->
+    <Row
+      :class="globalFlag.immersive ? 'hideTopBar' : ''"
+      @mouseenter="onBarMouseEnter"
+      @mouseleave="onBarMouseLeave"
+    >
       <span v-if="channelInfo.timeLeft"
         >上课时长：{{ parseTime(86400 - timeLeft) }}</span
       >
@@ -823,6 +733,8 @@ watch(
       @leave="clearRoom"
       :clear-room="clearRoom"
       :set-ending-meeting="setEndingMeeting"
+      @mouseenter="onBarMouseEnter"
+      @mouseleave="onBarMouseLeave"
     />
     <ChatRoom />
   </Row>

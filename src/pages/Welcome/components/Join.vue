@@ -77,8 +77,6 @@ import {
 } from "ant-design-vue";
 import { getAppToken } from "~/utils/request";
 import { parseSearch, logger } from "~/utils/tools";
-import configJson from "~/config.json";
-
 import DingRTC, {
   CameraVideoTrack,
   LocalTrack,
@@ -392,7 +390,7 @@ const onJoin = async () => {
  * 根据channelId获取用户信息的函数
  *
  */
-const fetchUserInfo = async (channelId: string, userToken: string) => {
+async function fetchUserInfo(channelId: string, userToken: string) {
   if (!channelId || !userToken) {
     console.log("参数错误:", channelId, userToken);
     message.error("会议链接有误，请检查会议链接是否正确");

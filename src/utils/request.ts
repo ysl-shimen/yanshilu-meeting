@@ -1,4 +1,4 @@
-import configJson from '~/config.json';
+import { getAppConfig } from './appConfig';
 import { parseSearch } from './tools';
 import MD5 from 'crypto-js/md5';
 
@@ -9,8 +9,6 @@ const formmatUrl = (url: string, params: any) => {
     .join('&');
   return `${url.includes('?') ? url : `${url}?`}${args}`;
 };
-
-const env = parseSearch('env') || configJson.env;
 
 export const request: any = (
   method: 'GET' | 'POST',
@@ -56,44 +54,35 @@ export const request: any = (
   });
 };
 
-const APP_SERVER_DOMAIN = configJson.APP_SERVER_DOMAIN;
-
-const token = configJson.token || '';
-
 export const getAppToken = async (
   userId: string,
   appId: string,
   channelId: string,
 ): Promise<{ token: string; gslb?: string[] }> => {
-  if (token) {
-    return {
-      token,
-    };
+  const cfg = getAppConfig();
+  if (cfg.token) {
+    return { token: cfg.token };
   }
-  const loginParam = {
-    channelId,
-    appId,
-    userId,
-  };
-  const result = (await request('GET', `${APP_SERVER_DOMAIN}/api/user/login`, loginParam)) as {
+  const loginParam = { channelId, appId, userId };
+  const result = (await request('GET', `${cfg.APP_SERVER_DOMAIN}/api/user/login`, loginParam)) as {
     token: string;
-    gslb?: string[] 
+    gslb?: string[];
   };
   return result;
 };
 
 export const startASR = async (appId: string, channel: string, functions: number) => {
+  const cfg = getAppConfig();
   const headers = {
     'DingRTC-Signature': MD5(appId).toString(),
   };
-
   const result = (await request(
     'POST',
-    `${APP_SERVER_DOMAIN}/api/asr/start`,
+    `${cfg.APP_SERVER_DOMAIN}/api/asr/start`,
     {
       appId,
       channelId: channel,
-      env,
+      env: parseSearch('env') || cfg.env,
       function: functions,
     },
     headers,
@@ -102,16 +91,17 @@ export const startASR = async (appId: string, channel: string, functions: number
 };
 
 export const stopASR = async (appId: string, channel: string, taskId: string) => {
+  const cfg = getAppConfig();
   const headers = {
     'DingRTC-Signature': MD5(appId).toString(),
   };
   return await request(
     'POST',
-    `${APP_SERVER_DOMAIN}/api/asr/stop`,
+    `${cfg.APP_SERVER_DOMAIN}/api/asr/stop`,
     {
       appId,
       channelId: channel,
-      env,
+      env: parseSearch('env') || cfg.env,
       function: 1,
       taskId,
     },

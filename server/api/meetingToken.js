@@ -10,43 +10,6 @@ const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 // 后端项目的基地址
 const EXTERNAL_API_BASE = config.backendHost;
 
-// 更新meetingToken信息
-router.post('/update', async (req, res) => {
-    try {
-        const updateData = req.body;
-
-        // 调用另一个项目的接口更新录制信息
-        const targetUrl = `${EXTERNAL_API_BASE}/api/meeting/meeting-token`;
-        const postData = JSON.stringify(updateData);
-        
-        const response = await fetch(targetUrl, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: postData
-        });
-
-        // 检查响应状态
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: ${await response.text()}`);
-        }
-
-        // 解析JSON响应
-        const data = await response.json();
-
-        res.json(data);
-    } catch (error) {
-        console.error('更新录制信息失败:', error);
-        // 如果无法连接到服务，返回模拟数据
-        res.json({
-            code: 200,
-            data: req.body,
-            message: 'success'
-        });
-    }
-});
-
 // 查询meetingToken信息
 router.get('/info', async (req, res) => {
   try {

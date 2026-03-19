@@ -1,7 +1,7 @@
 import DingRTC from 'dingrtc';
 import { defineStore } from 'pinia';
 import { isIOS, isMac, isMobile, isWeixin, logLevel, parseSearch } from './utils/tools';
-import configJson from '~/config.json';
+import { getAppConfig } from '~/utils/appConfig';
 import { RtcWhiteboard, WhiteboardManager } from '@dingrtc/whiteboard';
 import ASR from 'dingrtc-asr';
 import RTM, { RTMMessage, SessionUser } from '@dingrtc/rtm';
@@ -182,25 +182,28 @@ export const useInnerClientStore: any = defineStore('ClientStore', {
 });
 
 export const useCurrentUserInfo = defineStore('ICurrentUserInfo', {
-  state: () => ({
-    appId: parseSearch('appId') || configJson.appId || '',
-    userId: parseSearch('userId') || configJson.userId || `${Math.ceil(Math.random() * 10000)}`,
-    userName:
-      parseSearch('userName') || configJson.userName || `Web-${Math.ceil(Math.random() * 100)}`,
-    channel:
-      parseSearch('channelId') || configJson.channelId || `${Math.ceil(Math.random() * 10000)}`,
-    duration: '',
-    delay: '',
-    token: configJson.token || '',
-    taskId: '',
-    avatar: '',
-    courseName: '',
-    courseCode: '',
-    teacherNickname: '',
-    studentNickname: '',
-    lessonNumber: '',
-    totalLessons: '',
-  }),
+  state: () => {
+    const cfg = getAppConfig();
+    return {
+      appId: parseSearch('appId') || cfg.appId || '',
+      userId: parseSearch('userId') || cfg.userId || `${Math.ceil(Math.random() * 10000)}`,
+      userName:
+        parseSearch('userName') || cfg.userName || `Web-${Math.ceil(Math.random() * 100)}`,
+      channel:
+        parseSearch('channelId') || cfg.channelId || `${Math.ceil(Math.random() * 10000)}`,
+      duration: '',
+      delay: '',
+      token: cfg.token || '',
+      taskId: '',
+      avatar: '',
+      courseName: '',
+      courseCode: '',
+      teacherNickname: '',
+      studentNickname: '',
+      lessonNumber: '',
+      totalLessons: '',
+    };
+  },
 });
 
 let defaultCameraDimension: VideoDimension = 'VD_1920x1080';
@@ -367,7 +370,7 @@ export const useGlobalFlag = defineStore('IGlobalFlag', {
     immersive: false,
     isMobile: !!isMobile(),
     hideLog: logLevel === 'none',
-    env: parseSearch('env') || configJson.env || '',
+    env: parseSearch('env') || getAppConfig().env || '',
     isIOS: !!isIOS(),
     isMac: isMac(),
     isWeixin: !!isWeixin(),

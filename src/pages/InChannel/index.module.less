@@ -1,7 +1,16 @@
+// 底部工具栏收起：向下滑出
 .hideBar {
   height: 0 !important;
   overflow: hidden;
   transform: translateY(100%);
+  padding: 0 !important;
+}
+
+// 顶部栏收起：向上滑出
+.hideTopBar {
+  height: 0 !important;
+  overflow: hidden;
+  transform: translateY(-100%);
   padding: 0 !important;
 }
 
@@ -241,10 +250,11 @@
   & > div:first-of-type {
     height: 24px;
     width: 100%;
-    position: absolute;
+    position: fixed;
+    top: 0;
     background-color: #fff;
     z-index: 50;
-    transition: height 0.5s ease;
+    transition: height 0.3s ease, transform 0.3s ease;
     overflow: hidden;
     & > span:first-of-type {
       position: relative;

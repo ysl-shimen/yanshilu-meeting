@@ -33,6 +33,7 @@
               :max="100"
               @change="handleProgressChange"
               :disabled="!playerReady"
+              :tip-formatter="null"
             />
           </div>
 
@@ -1005,7 +1006,8 @@ const handleDoubleClick = (e: Event) => {
   left: 0;
   width: 100% !important;
   height: 100% !important;
-  background-image: url("https://cdn.yanshilu.com/resources/111_1764125953293_IUTIO_Lrcy_1764125953294_tn0x5u.jpg");
+  /* background-image: url("https://cdn.yanshilu.com/resources/111_1764125953293_IUTIO_Lrcy_1764125953294_tn0x5u.jpg"); */
+  background-image: url("https://test-cdn.yanshilu.com/resources/1773899580619_1773902089010__XtwTsSc1I_1773902089011_aw151n.jpg");
   background-repeat: no-repeat;
   background-position: center;
   background-size: cover;

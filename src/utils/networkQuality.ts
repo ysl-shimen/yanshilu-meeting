@@ -1,6 +1,6 @@
 import DingRTC, { CameraVideoTrack, DingRTCClient, NetworkQuality, RemoteUser, TrackMediaType } from 'dingrtc';
 import { getAppToken } from './request';
-import configJson from '~/config.json';
+import { getAppConfig } from '~/utils/appConfig';
 import { message } from 'ant-design-vue';
 import { parseSearch } from './tools';
 
@@ -13,7 +13,6 @@ const networkQualityMap: Record<NetworkQuality, string> = {
   5: '网络极差',
   6: '网络已断开',
 };
-const appId = parseSearch('appId') || configJson.appId || '';
 const channel = `${Math.ceil(Math.random() * 10000)}`;
 const userIdA = `${Math.ceil(Math.random() * 10000)}`;
 const userNameA = `Web-${Math.ceil(Math.random() * 100)}`;
@@ -34,6 +33,7 @@ const testResult = {
 };
 // 1. 检测上行网络质量
 async function testUplinkNetworkQuality() {
+  const appId = parseSearch('appId') || getAppConfig().appId || '';
   cameraTrack = await DingRTC.createCameraVideoTrack({ dimension: 'VD_640x480' });
   uplinkClient.on('network-quality', (uplinkNetworkQuality: NetworkQuality) => {
     testResult.uplinkNetworkQualities.push(uplinkNetworkQuality);
@@ -52,6 +52,7 @@ async function testUplinkNetworkQuality() {
 }
 // 2. 检测下行网络质量
 async function testDownlinkNetworkQuality() {
+  const appId = parseSearch('appId') || getAppConfig().appId || '';
   // 加入用于测试的房间，房间号需要随机，避免冲突
   const { gslb, token } = await getAppToken(userIdB, appId, channel);
   DingRTC.setClientConfig({ gslb });

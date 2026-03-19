@@ -28,9 +28,14 @@ $ npm run build
 - 备份/var/www/yanshilu-meeting/backend目录下的旧文件；
 - 将server目录下的代码上传到/var/www/yanshilu-meeting/backend文件夹；
 - 执行npm install 下载依赖包；
-- 运行后端项目，第一次启动：执行pm2 start ecosystem.config.js；否则执行：pm2 restart meeting-yanshilu;
+- 运行后端项目，第一次启动：执行pm2 start ecosystem.config.js；否则执行：pm2 reload ecosystem.config.js --update-env（零宕机更新）;
+
 ## 6.项目配置
-- 配置后端访问地址：修改src/config.json文件的APP_SERVER_DOMAIN值为后端部署的域名或者IP地址。
+- 配置研师录会议后端访问地址：修改public/config.json文件的APP_SERVER_DOMAIN值为研师录会议后端部署的域名或者IP地址。
+- 生产环境地址为：https://meeting.yanshilu.com，
+- 测试版环境地址为：https://test.meeting.yanshilu.com
+- 修改配置后无需重启
+
 ```json
 {
   "env": "onertcOnline",
@@ -39,16 +44,18 @@ $ npm run build
   "userId": "",
   "userName": "",
   "token": "",
-  "APP_SERVER_DOMAIN": "http://localhost:3001"
+  "APP_SERVER_DOMAIN": "https://test.meeting.yanshilu.com"
 }
 ```
 - 配置管理后台访问地址：修改server/config/config.json文件，backendHost值为管理后台的域名或者IP地址，port值为研师录会议项目后台的端口号。
+- 生产环境的backendHost值为：https://yanshilu.com
+- 测试环境的backendHost值为：https://test.yanshilu.com
 ```json
 {
   "rtc": {
-    "appId": "",
+    "appId": "yat86lo5",
     "appKey": "",
-    "templateId": "",
+    "templateId": "Rkykv0rE",
     "accessKeyId": "",
     "accessKeySecret": "",
     "storageConfig": {
@@ -56,7 +63,8 @@ $ npm run build
       "region": 1,
       "bucket": "ysl-rtc"
     },
-    "configType": "access_key"
+    "configType": "access_key",
+    "callbackSecret": ""
   },
   "oss": {
     "region": "oss-cn-shanghai",
@@ -64,5 +72,12 @@ $ npm run build
     "domain": "https://oss.yanshilu.com"
   },
   "backendHost": "https://test.yanshilu.com",
-  "port": 3001
+  "port": 3001,
+  "enableRecording": true
 }
+
+## 7.注意事项
+- 录像信息采用阿里云回调接口+主动查询来更新
+  1.在阿里云配置录制回调接口信息，页面为：https://rtc.console.aliyun.com/?spm=5176.30275541.J_ZGek9Blx07Hclc3Ddt9dg.2.3bf82f3d4YeoKf&scm=20140722.S_card@@%E7%94%9F%E6%80%81%E5%90%88%E4%BD%9C@@586250._.ID_card@@%E7%94%9F%E6%80%81%E5%90%88%E4%BD%9C@@586250-RL_%E9%9F%B3%E8%A7%86%E9%A2%91%E9%80%9A%E4%BF%A1-LOC_2024SPSearchCard-OR_ser-PAR1_21056d4117738014501228332d0c1d-V_4-RE_new5-P0_0-P1_0#/notice/list , 接口地址为：https://test.meeting.yanshilu.com/api/record/callback
+  2.结束会议后，阿里云会调用回调接口更新信息，配合主动查询录像信息实现录像信息更新；
+  3.由于只能配置一个回调接口，所以配置为正式版的接口，https://meeting.yanshilu.com/api/record/callback， 测试版靠主动查询实现录像更新

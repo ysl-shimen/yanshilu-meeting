@@ -17,20 +17,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { Mic, Camera } from '~/components/Device';
-import { Row, Col, Divider, Avatar } from 'ant-design-vue';
+import { Row, Col, Divider, Avatar, message, Modal } from 'ant-design-vue';
 import { useDevice } from '~/hooks/device';
 import { useChannelInfo, useCurrentUserInfo, useDeviceInfo, useGlobalFlag } from '~/store';
 
 const currentUserInfo = useCurrentUserInfo();
 const refContainer = ref(null);
 
-// 状态管理
-const cameraTrack = ref(null);
-
 const globalFlag = useGlobalFlag();
-const { userName } = useCurrentUserInfo();
 const deviceInfo = useDeviceInfo();
 const channelInfo = useChannelInfo();
 
@@ -43,39 +39,80 @@ const props = defineProps({
 
 // 设备操作
 const { operateCamera, operateMic, openCamera, openMic } = useDevice('pre');
+
+// 判断是否是权限被拒绝的错误
+const isPermissionDenied = (error: any): boolean => {
+  const msg = error?.message?.toLowerCase() || '';
+  const name = error?.name?.toLowerCase() || '';
+  return (
+    name === 'notallowederror' ||
+    msg.includes('permission') ||
+    msg.includes('no camera permission') ||
+    msg.includes('no microphone permission')
+  );
+};
+
+// 弹出引导用户去浏览器设置开启权限的提示
+const showPermissionGuide = (deviceType: '摄像头' | '麦克风') => {
+  Modal.warning({
+    title: `${deviceType}权限被拒绝`,
+    content: `浏览器已记录您拒绝了${deviceType}权限，无法再次弹出授权框。请查看浏览器地址栏中被禁止的${deviceType}图标（Chrome/Firefox 在地址栏左侧，Edge 在地址栏右侧），点击后将"${deviceType}"权限改为"允许"，然后刷新页面重试。`,
+    okText: '我知道了',
+  });
+};
+
+// 页面加载时自动请求摄像头权限，触发浏览器地址栏图标
 onMounted(async () => {
-   await new Promise((resolve) => setTimeout(resolve, 2000));
-  if (props.meetingEnded) {
-    console.log("会议已结束，无需操作摄像头和麦克风...");
-    return Promise.resolve();
-  }
-  if (globalFlag.isMobile) {
-    return
-  };
-  const track = await openCamera();
-  cameraTrack.value = track;
-  if (!globalFlag.joined && refContainer.value) {
-    track?.play(refContainer.value.$el, { fit: 'cover', mirror: true });
+  if (props.meetingEnded) return;
+  try {
+    const track = await openCamera();
+    if (refContainer.value) {
+      track?.play(refContainer.value.$el, { fit: 'cover', mirror: true });
+    }
+  } catch (error) {
+    if (isPermissionDenied(error)) {
+      showPermissionGuide('摄像头');
+    }
+    // 其他错误静默处理，用户可手动点击摄像头按钮重试
   }
 });
 
-const onClickCamera = () => {
-  if (globalFlag.isMobile && !channelInfo.cameraTrack) {
-    openCamera().then((track) => {
+const onClickCamera = async () => {
+  if (props.meetingEnded) return;
+  try {
+    if (!channelInfo.cameraTrack) {
+      const track = await openCamera();
       if (refContainer.value) {
         track?.play(refContainer.value.$el, { fit: 'cover', mirror: true });
       }
-    });
-  } else {
-    operateCamera();
+    } else {
+      operateCamera();
+    }
+  } catch (error) {
+    if (isPermissionDenied(error)) {
+      showPermissionGuide('摄像头');
+    } else {
+      message.error('打开摄像头失败，请检查设备是否正常');
+      console.error('[Preview] 打开摄像头失败:', error);
+    }
   }
 };
 
-const onClickMic = () => {
-  if (globalFlag.isMobile && !channelInfo.micTrack) {
-    openMic();
-  } else {
-    operateMic();
+const onClickMic = async () => {
+  if (props.meetingEnded) return;
+  try {
+    if (globalFlag.isMobile && !channelInfo.micTrack) {
+      await openMic();
+    } else {
+      await operateMic();
+    }
+  } catch (error) {
+    if (isPermissionDenied(error)) {
+      showPermissionGuide('麦克风');
+    } else {
+      message.error('打开麦克风失败，请检查设备是否正常');
+      console.error('[Preview] 打开麦克风失败:', error);
+    }
   }
 };
 
