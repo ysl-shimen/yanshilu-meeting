@@ -79,9 +79,13 @@
       white-space: nowrap;
     }
     
-    &:hover {
-      background-color: #dcdcdc;
-      border-radius: 4px;
+    // 仅在支持 hover 的设备（鼠标设备）上启用 hover 样式，
+    // 避免触摸屏点击后样式残留
+    @media (hover: hover) and (pointer: fine) {
+      &:hover {
+        background-color: #dcdcdc;
+        border-radius: 4px;
+      }
     }
   }
   
@@ -99,7 +103,7 @@
   // 1. 平板/笔记本 (1024px以下)
   @media screen and (max-width: 1024px) {
     .toolBtn {
-      width: 60px;
+      width: 64px;
       font-size: 16px;
       & > span:last-of-type { transform: scale(0.95); }
     }
@@ -108,7 +112,7 @@
   // 2. 窄屏平板 (768px以下)
   @media screen and (max-width: 768px) {
     .toolBtn {
-      width: 50px;
+      width: 58px;
       height: 44px;
       & > span:last-of-type {
         font-size: 10px;
@@ -286,6 +290,32 @@
       }
     }
     
+    // 竖屏平板 / 手机：小视频改为底部水平滚动，避免遮挡主视图
+    @media screen and (max-width: 768px) and (orientation: portrait) {
+      .smallVideoItems.standard {
+        top: auto;
+        right: 0;
+        bottom: 66px; // 工具栏上方
+        left: 0;
+        width: 100%;
+        max-height: 90px;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 0 8px;
+        background-color: rgba(0, 0, 0, 0.2);
+        
+        .smallVideoItem {
+          flex-shrink: 0;
+          width: 130px;
+          height: 74px;
+          margin-top: 8px;
+          margin-right: 8px;
+        }
+      }
+    }
+    
     .mainView {
       position: fixed;
       top: 0;
@@ -321,8 +351,10 @@
 .viewConfigHot {
   padding: 2px 12px;
   border-radius: 6px;
-  &:hover {
-    background-color: #eaecef;
+  @media (hover: hover) and (pointer: fine) {
+    &:hover {
+      background-color: #eaecef;
+    }
   }
 }
 

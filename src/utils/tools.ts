@@ -38,13 +38,30 @@ export const parseSearch = (key: string) => {
 };
 
 const mobileReg =
-  /(phone|pad|pod|iPhone|iPod|ios|iPad|Android|Mobile|BlackBerry|IEMobile|MQQBrowser|JUC|Fennec|wOSBrowser|BrowserNG|WebOS|Symbian|Windows Phone)/i;
+  /(phone|pod|iPhone|iPod|ios|Android|Mobile|BlackBerry|IEMobile|MQQBrowser|JUC|Fennec|wOSBrowser|BrowserNG|WebOS|Symbian|Windows Phone)/i;
 const iOSReg = /(iPhone|iPad|iPod|iOS)/i;
 const weixinReg = /micromessenger.([\d.]+)/i;
 
 export const isMobile = () => navigator.userAgent.match(mobileReg);
 
 export const isIOS = () => navigator.userAgent.match(iOSReg);
+
+/**
+ * 判断是否为触摸设备（手机或平板）
+ * 使用 CSS 媒体查询而非 UA 嗅探，能正确识别 iPad（iOS 13+ UA 伪装成桌面端）
+ */
+export const isTouchDevice = () =>
+  window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+
+/**
+ * 判断是否支持全屏 API
+ * iOS Safari 不支持标准 requestFullscreen
+ */
+export const isFullscreenSupported = () =>
+  !!(
+    document.documentElement.requestFullscreen ||
+    (document.documentElement as any).webkitRequestFullscreen
+  );
 
 export const isWeixin = () => navigator.userAgent.match(weixinReg);
 

@@ -95,7 +95,10 @@
                     {{ playbackRate }}x
                   </a-button>
                   <template #overlay>
-                    <a-menu @click="({ key }) => setPlaybackRate(Number(key))">
+                    <a-menu
+                      class="video-player-rate-menu"
+                      @click="({ key }) => setPlaybackRate(Number(key))"
+                    >
                       <a-menu-item
                         v-for="rate in playbackRates"
                         :key="rate"
@@ -112,25 +115,15 @@
                 </a-dropdown>
               </div>
 
-              <!-- 音量控制 -->
-              <div class="volume-control">
+              <!-- 音量控制（iOS 系统不允许网页控制音量，隐藏此控件） -->
+              <div class="volume-control" v-if="showVolumeControl">
                 <span
                   class="volume-icon"
                   @mouseenter="showVolumeSlider = true"
                   @mouseleave="handleVolumeIconLeave"
                   @touchstart="toggleVolumeSlider"
                 >
-                  <template v-if="volumeLocal > 0">
-                    <template v-if="volumeLocal > 50">
-                      <SoundOutlined />
-                    </template>
-                    <template v-else>
-                      <SoundOutlined />
-                    </template>
-                  </template>
-                  <template v-else>
-                    <SoundOutlined />
-                  </template>
+                  <SoundOutlined />
                 </span>
                 <div
                   class="volume-slider"
@@ -174,7 +167,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, nextTick } from "vue";
+import { ref, watch, onMounted, onUnmounted, nextTick, computed } from "vue";
 import videojs from "video.js";
 import "video.js/dist/video-js.css";
 import "@videojs/http-streaming";
@@ -186,6 +179,7 @@ import {
   SoundOutlined,
 } from "@ant-design/icons-vue";
 import { message } from "ant-design-vue";
+import { isIOS } from "~/utils/tools";
 
 // Props定义
 const props = defineProps<{
@@ -813,17 +807,16 @@ const isMobile = () => {
   );
 };
 
-// 获取弹出层容器，解决全屏模式下下拉菜单无法显示的问题
-const getPopupContainer = (triggerNode: HTMLElement) => {
-  // 如果当前在全屏模式下，使用document.body作为容器
-  if (
-    document.fullscreenElement ||
-    (document as any).webkitFullscreenElement ||
-    (document as any).mozFullScreenElement
-  ) {
-    return document.body;
-  }
-  // 否则使用默认容器
+// iOS 系统不允许网页控制系统音量，隐藏音量控件避免误导用户
+const showVolumeControl = computed(() => !isIOS());
+
+// 获取弹出层容器
+// 核心原则：弹出层必须始终挂载在 videoWrapper 内部，原因：
+// 1. 非全屏时：挂在 videoWrapper 内，scoped :deep() 样式（黑色背景）才能生效
+// 2. 全屏时：浏览器全屏 API 会把全屏元素提升到 top layer，
+//    挂在 document.body 的弹出层会被全屏层遮挡，导致看不到也点不到；
+//    必须挂在 videoWrapper（即全屏元素）内部才能显示在全屏层中
+const getPopupContainer = (_triggerNode: HTMLElement) => {
   return videoWrapper.value || document.body;
 };
 
@@ -1183,23 +1176,16 @@ const handleDoubleClick = (e: Event) => {
   z-index: 1005 !important;
 }
 
-/* 倍速菜单样式 - 修复滚动条问题 */
+/* 倍速菜单样式
+ * 使用 :deep() 确保无论弹出层挂在哪个容器，样式都能覆盖到
+ * 同时在 <style> 块外追加全局样式兜底（见文件末尾）
+ */
 :deep(.ant-dropdown-menu) {
   background-color: rgba(0, 0, 0, 0.8) !important;
   border-color: rgba(255, 255, 255, 0.2) !important;
   z-index: 1007 !important;
-  /* 移除固定高度和滚动条，让菜单自适应 */
   max-height: none !important;
   overflow-y: visible !important;
-}
-
-/* 全屏模式下的特殊处理 */
-.video-wrapper.fullscreen-active .playback-rate-container {
-  z-index: 100000 !important; /* 全屏时更高 */
-}
-
-.video-wrapper.fullscreen-active :deep(.ant-dropdown) {
-  z-index: 100001 !important;
 }
 
 :deep(.ant-dropdown-menu-item) {
@@ -1217,21 +1203,21 @@ const handleDoubleClick = (e: Event) => {
   color: white !important;
 }
 
-/* 全屏模式下确保下拉菜单可见 */
-:fullscreen :deep(.ant-dropdown),
-:-webkit-full-screen :deep(.ant-dropdown),
-:-moz-full-screen :deep(.ant-dropdown) {
-  z-index: 1007 !important;
-}
-
 :deep(.ant-dropdown) {
-  z-index: 1006 !important; /* 确保在下拉时位于最顶层 */
+  z-index: 1006 !important;
 }
 
-:fullscreen :deep(.ant-dropdown-menu),
-:-webkit-full-screen :deep(.ant-dropdown-menu),
-:-moz-full-screen :deep(.ant-dropdown-menu) {
-  z-index: 1006 !important;
+/* 全屏模式下提升层级，确保弹出层在全屏元素内可见 */
+.video-wrapper.fullscreen-active .playback-rate-container {
+  z-index: 100000 !important;
+}
+
+.video-wrapper.fullscreen-active :deep(.ant-dropdown) {
+  z-index: 100001 !important;
+}
+
+.video-wrapper.fullscreen-active :deep(.ant-dropdown-menu) {
+  z-index: 100002 !important;
 }
 
 /* 在小屏幕设备上，如果菜单内容过多，才显示滚动条 */
@@ -1436,4 +1422,30 @@ const handleDoubleClick = (e: Event) => {
 }
 
 /* =======================测试样式===================== */
+</style>
+
+<!--
+  全局兜底样式：当 Ant Design 在触摸设备上忽略 getPopupContainer，
+  把弹出层挂到 document.body 时，scoped :deep() 样式会失效。
+  此非 scoped 的 <style> 块确保全局范围内倍速菜单样式始终正确。
+-->
+<style>
+.video-player-rate-menu.ant-dropdown-menu {
+  background-color: rgba(0, 0, 0, 0.8) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.video-player-rate-menu.ant-dropdown-menu .ant-dropdown-menu-item {
+  color: white !important;
+}
+
+.video-player-rate-menu.ant-dropdown-menu .ant-dropdown-menu-item:hover,
+.video-player-rate-menu.ant-dropdown-menu .ant-dropdown-menu-item-active {
+  background-color: rgba(24, 144, 255, 0.3) !important;
+}
+
+.video-player-rate-menu.ant-dropdown-menu .ant-dropdown-menu-item.active {
+  background-color: rgba(24, 144, 255, 0.5) !important;
+  color: white !important;
+}
 </style>

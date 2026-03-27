@@ -52,11 +52,20 @@ const isPermissionDenied = (error: any): boolean => {
   );
 };
 
+// 判断是否为移动/触摸设备（手机或平板）
+const isMobileOrTablet = () => globalFlag.isIOS || globalFlag.isTouch;
+
 // 弹出引导用户去浏览器设置开启权限的提示
 const showPermissionGuide = (deviceType: '摄像头' | '麦克风') => {
+  let content = '';
+  if (isMobileOrTablet()) {
+    content = `浏览器已记录您拒绝了${deviceType}权限，无法再次弹出授权框。\n请尝试以下方式重新开启：\n① 点击地址栏左侧的图标（锁形、"aA" 或网站名称）→ 选择"网站设置" → 将"${deviceType}"改为"允许"，然后刷新页面。\n② 前往设备【设置】→【隐私】或【应用权限】→ 找到浏览器 → 开启${deviceType}权限后重新打开页面。`;
+  } else {
+    content = `浏览器已记录您拒绝了${deviceType}权限，无法再次弹出授权框。请查看浏览器地址栏中被禁止的${deviceType}图标（Chrome/Firefox 在地址栏左侧，Edge 在地址栏右侧），点击后将"${deviceType}"权限改为"允许"，然后刷新页面重试。`;
+  }
   Modal.warning({
     title: `${deviceType}权限被拒绝`,
-    content: `浏览器已记录您拒绝了${deviceType}权限，无法再次弹出授权框。请查看浏览器地址栏中被禁止的${deviceType}图标（Chrome/Firefox 在地址栏左侧，Edge 在地址栏右侧），点击后将"${deviceType}"权限改为"允许"，然后刷新页面重试。`,
+    content,
     okText: '我知道了',
   });
 };

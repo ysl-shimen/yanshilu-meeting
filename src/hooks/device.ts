@@ -5,10 +5,9 @@ import DingRTC, {
   LocalVideoTrack,
   MicrophoneAudioTrack,
 } from 'dingrtc';
-import { logger, parseSearch } from '~/utils/tools';
+import { logger, parseSearch, isTouchDevice } from '~/utils/tools';
 import { ref } from 'vue';
 import { useChannel } from './channel';
-import { isMobile } from '~/utils/tools';
 // @ts-ignore
 window.DingRTC = DingRTC;
 
@@ -108,15 +107,15 @@ export const useDevice = (scene?: 'pre' | 'in') => {
             ...item.toJSON(),
             label: item.label.replace(pattern, ''),
           }));
-        if (isMobile()) {
-          logger.info('isMobile', isMobile());
-          // mock一下前后置摄像头
+        if (isTouchDevice()) {
+          logger.info('isTouchDevice (mobile/tablet), mock front/back cameras');
+          // 触摸设备（手机/平板）mock前后置摄像头
           deviceInfo.cameraList = [
             {
               deviceId: '1',
               groupId: 'mock',
               kind: 'videoinput',
-              label: 'user',
+              label: '前置摄像头',
               toJSON: function () {
                 throw new Error('demo mock device obj.');
               },
@@ -125,7 +124,7 @@ export const useDevice = (scene?: 'pre' | 'in') => {
               deviceId: '0',
               groupId: '',
               kind: 'videoinput',
-              label: 'environment',
+              label: '后置摄像头',
               toJSON: function () {
                 throw new Error('demo mock device obj.');
               },
@@ -155,7 +154,7 @@ export const useDevice = (scene?: 'pre' | 'in') => {
       dimension: deviceInfo.cameraDimension,
       frameRate: 17, //deviceInfo.cameraFrameRate,
     };
-    if (isMobile()) {
+    if (isTouchDevice()) {
       delete videoConstraints.deviceId;
       // @ts-ignore
       videoConstraints.facingMode = 'user';

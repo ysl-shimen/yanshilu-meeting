@@ -1,7 +1,8 @@
 // 响应式设计 - 适配不同屏幕尺寸
-@mobile: ~"screen and (max-width: 768px)";
-@tablet: ~"screen and (min-width: 769px) and (max-width: 1024px)";
-@desktop: ~"screen and (min-width: 1025px)";
+// 注意：@mobile 覆盖到 900px，是为了让平板竖屏（通常768px~900px）也走纵向布局
+@mobile: ~"screen and (max-width: 900px)";
+@tablet: ~"screen and (min-width: 901px) and (max-width: 1200px)";
+@desktop: ~"screen and (min-width: 1201px)";
 
 .wrap {
   width: 100%;
@@ -92,8 +93,10 @@
   position: relative;
   
   @media @tablet {
-    width: 600px;
-    height: 338px; // 保持16:9比例
+    width: 55vw;      // 用视口百分比，自适应平板横屏
+    max-width: 700px;
+    height: auto;
+    aspect-ratio: 16 / 9; // 保持 16:9 比例
   }
   
   @media @mobile {
@@ -179,8 +182,9 @@
   flex-direction: column;
   
   @media @tablet {
-    width: 320px;
-    min-height: 338px; // 与平板上Preview高度一致
+    width: 36vw;      // 与预览区配合，两者加 gap 不超出屏幕
+    max-width: 380px;
+    min-height: auto;
   }
   
   @media @mobile {
@@ -277,7 +281,7 @@
   flex: 1;
 }
 
-// 移动端特定样式
+// 移动端 / 平板竖屏特定样式
 @media @mobile {
   .previewWrap {
     height: 35vh;

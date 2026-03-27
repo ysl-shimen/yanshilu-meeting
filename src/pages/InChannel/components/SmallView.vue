@@ -76,7 +76,7 @@ import Icon from '~/components/Icon';
 import { downloadFileByBase64, logger } from '~/utils/tools';
 import { useClient, useChannelInfo, useCurrentUserInfo, useDeviceInfo } from '~/store';
 import { ScoreMap } from './NetworkBar';
-import { computed, onBeforeUnmount, ref, watch, reactive, onMounted } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, reactive } from 'vue';
 import { useChannel, useWhiteboardHooks } from '~/hooks/channel';
 import { VideoSourceInfo } from 'dingrtc';
 import { AnnotationSourceType } from '@dingrtc/whiteboard';
@@ -224,8 +224,9 @@ const handleDragMove = (e: MouseEvent | TouchEvent) => {
   const deltaX = x - dragPosition.startX;
   const deltaY = y - dragPosition.startY;
 
-  // 防抖动判断
-  if (!hasMoved.value && (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5)) {
+  // 防抖动判断：触摸屏手指偏移较大，阈值提升到 12px，避免点击误触发拖拽
+  const moveThreshold = ('ontouchstart' in window) ? 12 : 5;
+  if (!hasMoved.value && (Math.abs(deltaX) > moveThreshold || Math.abs(deltaY) > moveThreshold)) {
     hasMoved.value = true;
     isFixed.value = true;
   }
@@ -305,16 +306,23 @@ const videoIsPlay = computed(() => {
     return true;
   }
 
-  let track = actualTrack.value;
+  // 远端用户：track 存在即认为可以播放
+  // 不依赖 trackStatsMap，因为切换主画面时不会触发 updateTrackStats，
+  // 平板上 trackStatsMap 可能还没有该用户记录，导致 videoIsPlay 错误返回 false
+  const track = actualTrack.value;
   if (!track) return false;
 
-  const trackStats = channelInfo.trackStatsMap.get(user.value.userId);
-  if (!trackStats) return false;
+  // track 存在且未被静音，则认为应该播放
+  // videoTrack：检查 videoMuted；auxiliaryTrack：检查 auxiliaryMuted
+  if (track === user.value.videoTrack) {
+    return !user.value.videoMuted;
+  }
+  if (track === user.value.auxiliaryTrack) {
+    return !user.value.auxiliaryMuted;
+  }
 
-  if (track === user.value.videoTrack) return !!trackStats.camera;
-  if (track === user.value.auxiliaryTrack) return !!trackStats.screen;
-  
-  return false;
+  // 兜底：track 存在就播放
+  return true;
 });
 
 const resolution = computed(() => {
@@ -325,47 +333,72 @@ const resolution = computed(() => {
   return map.get(`${uid}#${type}`);
 })
 
-// Watch 逻辑
-watch(() => [containerRef.value, actualTrack.value, videoIsPlay.value], ([newContainer, newTrack, isPlaying], oldValues) => {
-  const [oldContainer, oldTrack] = oldValues || [];
+// 是否已挂载
+const smallViewMounted = ref(false);
 
-  if (oldTrack && oldContainer && oldContainer.$el) {
-    try {
-      oldTrack.stop(oldContainer.$el);
-    } catch (e) {
-      console.warn('Stop track error:', e);
-    }
-  }
-
-  if (isPlaying && newTrack && newContainer && newContainer.$el) {
+// 播放 track 到小视图容器
+const doPlaySmall = (track: any) => {
+  if (!track || !containerRef.value?.$el) return;
+  const el = containerRef.value.$el;
+  try {
+    logger.info('SmallView doPlaySmall: user=', user.value.userId, 'trackId=', track.getTrackId?.(), 'el=', el.tagName, 'elId=', el.dataset?.id || el.className?.slice(0,20));
+    track.play(el, { fit: 'contain' });
+    // 延迟检查：play 后 200ms 检查 video 元素是否真的在 DOM 里
     setTimeout(() => {
-      if (containerRef.value && containerRef.value.$el) {
-        try {
-          newTrack.play(containerRef.value.$el, {
-            fit: 'contain',
-          });
-        } catch (error) {
-          console.error('播放失败:', error);
-        }
+      const videos = el.querySelectorAll('video');
+      logger.info('SmallView doPlaySmall check: user=', user.value.userId, 'videos in el=', videos.length, 'videoIsPlay=', videoIsPlay.value, 'actualTrack=', !!actualTrack.value);
+      if (videos.length > 0) {
+        const v = videos[0] as HTMLVideoElement;
+        logger.info('  video readyState=', v.readyState, 'paused=', v.paused, 'srcObject=', !!v.srcObject, 'width=', v.videoWidth, 'height=', v.videoHeight);
       }
     }, 200);
-  } else if (!isPlaying && newTrack && newContainer && newContainer.$el) {
-    try {
-      newTrack.stop(newContainer.$el);
-    } catch (e) {}
+  } catch (e) {
+    logger.warn('SmallView doPlaySmall error:', e);
   }
-}, { immediate: true });
+};
+
+// 监听 actualTrack 和 videoIsPlay 变化
+watch(
+  () => [actualTrack.value, videoIsPlay.value] as const,
+  ([newTrack, isPlaying]) => {
+    logger.info('SmallView watch: user=', user.value.userId, 'track=', newTrack?.getTrackId?.(), 'isPlaying=', isPlaying);
+    if (!smallViewMounted.value) return;
+    if (isPlaying && newTrack) {
+      nextTick(() => doPlaySmall(newTrack));
+    } else if (!isPlaying && newTrack && containerRef.value?.$el) {
+      try { (newTrack as any).stop(containerRef.value.$el); } catch (e) {}
+    }
+  }
+);
+
+onMounted(() => {
+  smallViewMounted.value = true;
+  logger.info(
+    'SmallView onMounted: user=', user.value.userId,
+    'propsTrack=', !!props.track,
+    'actualTrack=', !!actualTrack.value,
+    'videoIsPlay=', videoIsPlay.value,
+    'videoMuted=', user.value.videoMuted,
+    'videoTrack=', !!user.value.videoTrack,
+  );
+  if (actualTrack.value && videoIsPlay.value) {
+    nextTick(() => doPlaySmall(actualTrack.value));
+  }
+});
 
 onBeforeUnmount(() => {
+  smallViewMounted.value = false;
   window.removeEventListener('mousemove', handleDragMove);
   window.removeEventListener('mouseup', handleDragEnd);
   window.removeEventListener('touchmove', handleDragMove);
   window.removeEventListener('touchend', handleDragEnd);
 
-  if (actualTrack.value && containerRef.value?.$el) {
-    try {
-      actualTrack.value.stop(containerRef.value.$el);
-    } catch (e) {}
+  // 卸载时停止本容器的渲染
+  const el = containerRef.value?.$el;
+  const track = actualTrack.value;
+  if (track && el) {
+    logger.info('SmallView onBeforeUnmount: user=', user.value.userId, 'inDoc=', document.contains(el));
+    try { track.stop(el); } catch (e) {}
   }
 });
 

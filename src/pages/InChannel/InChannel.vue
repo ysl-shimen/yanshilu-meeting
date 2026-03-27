@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ref, onMounted, onUnmounted, computed, watch, watchEffect } from "vue";
+import { ref, onMounted, onUnmounted, computed, watch, watchEffect, nextTick } from "vue";
 import SmallView from "./components/SmallView.vue";
 import MainView from "./components/MainView.vue";
 import Whiteboard from "./components/Whiteboard.vue";
@@ -36,6 +36,7 @@ import Subtitle from "./components/Subtitle/SubtitleBar.vue";
 import ChatRoom from "./components/ChatRoom/index.vue";
 import { joinMeeting, leaveMeeting } from "~/services/recordService";
 import { getAppConfig } from '~/utils/appConfig';
+import { isFullscreenSupported } from '~/utils/tools';
 
 // 定义类型别名，避免直接从 dingrtc 导入不存在的类型
 type Group = any;
@@ -179,8 +180,8 @@ const handlePageUnload = (event: Event) => {
 const TOP_BAR_HEIGHT = 24;
 const BOTTOM_BAR_HEIGHT = 56;
 
-// 判断当前是否为触摸设备（手机/平板）
-const isTouchDevice = () => window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+// 触摸设备自动隐藏延迟（平板给更长时间）
+const TOUCH_AUTO_HIDE_DELAY = 6000;
 
 // ── 桌面端：鼠标交互 ──
 
@@ -206,7 +207,7 @@ const cancelHideAndShow = () => {
 
 // 鼠标在中间视频区域移动：显示菜单栏
 const onWrapperMouseMove = (e: MouseEvent) => {
-  if (isTouchDevice()) return;
+  if (globalFlag.isTouch) return;
   const winH = window.innerHeight;
   const y = e.clientY;
   const inCenter = y > TOP_BAR_HEIGHT && y < winH - BOTTOM_BAR_HEIGHT;
@@ -216,39 +217,39 @@ const onWrapperMouseMove = (e: MouseEvent) => {
 
 // 鼠标离开整个会议页面（含所有 fixed 子元素之外）：延迟收起
 const onWrapperMouseLeave = () => {
-  if (isTouchDevice()) return;
+  if (globalFlag.isTouch) return;
   scheduleHide(300);
 };
 
 // 鼠标进入顶部栏或底部工具栏：取消收起，保持显示
 const onBarMouseEnter = () => {
-  if (isTouchDevice()) return;
+  if (globalFlag.isTouch) return;
   cancelHideAndShow();
 };
 
 // 鼠标离开顶部栏或底部工具栏（移回中间区域或离开页面）：延迟收起
 const onBarMouseLeave = () => {
-  if (isTouchDevice()) return;
+  if (globalFlag.isTouch) return;
   scheduleHide(400);
 };
 
-// ── 触摸设备：点击中间区域切换显示/隐藏 ──
+// ── 触摸设备（手机/平板）：点击中间区域切换显示/隐藏 ──
 
 const onWrapperTap = (e: MouseEvent) => {
-  if (!isTouchDevice()) return;
+  if (!globalFlag.isTouch) return;
   const winH = window.innerHeight;
   const y = e.clientY;
   const inCenter = y > TOP_BAR_HEIGHT && y < winH - BOTTOM_BAR_HEIGHT;
   if (!inCenter) return;
 
   if (globalFlag.immersive) {
-    // 当前已收起 → 展开，并在 4 秒后自动收起
+    // 当前已收起 → 展开，并在 N 秒后自动收起
     globalFlag.$patch({ immersive: false });
     if (immersiveTimer.value) clearTimeout(immersiveTimer.value);
     immersiveTimer.value = window.setTimeout(() => {
       globalFlag.$patch({ immersive: true });
       immersiveTimer.value = 0;
-    }, 4000);
+    }, TOUCH_AUTO_HIDE_DELAY);
   } else {
     // 当前已展开 → 立即收起
     if (immersiveTimer.value) {
@@ -367,6 +368,22 @@ onMounted(() => {
   });
   client.on("stream-type-changed", (uid, streamType) => {
     logger.info(`user ${uid} streamType changeTo ${streamType}`);
+    // stream-type-changed 触发时，SDK 的 innnerPlay 已经重新赋值了 srcObject，
+    // 但在部分平台（如 iPad）上 video 可能停留在 readyState=0，需要手动重触发播放
+    if (uid === channelInfo.mainViewUserId) {
+      setTimeout(() => {
+        const mainViewEl = document.querySelector('.mainView');
+        if (!mainViewEl) return;
+        const video = mainViewEl.querySelector('video') as HTMLVideoElement;
+        if (video && video.srcObject && video.videoWidth === 0) {
+          logger.info(`stream-type-changed: mainView video width=0, forcing replay for user ${uid}`);
+          const stream = video.srcObject as MediaStream;
+          video.srcObject = null;
+          video.srcObject = stream;
+          video.play().catch(err => logger.warn("stream-type-changed force replay error:", err));
+        }
+      }, 150);
+    }
   });
 
   client.on("connection-state-change", (current, _, reason) => {
@@ -441,8 +458,18 @@ onMounted(() => {
     }
   );
 
-  // 初始状态收起菜单栏，等鼠标移入中间区域再显示
-  globalFlag.$patch({ immersive: true });
+  // 初始状态：
+  // - 触摸设备（手机/平板）：先显示菜单栏，2 秒后自动收起，引导用户了解操作方式
+  // - 桌面端：直接收起，等鼠标移入中间区域再显示
+  if (globalFlag.isTouch) {
+    globalFlag.$patch({ immersive: false });
+    immersiveTimer.value = window.setTimeout(() => {
+      globalFlag.$patch({ immersive: true });
+      immersiveTimer.value = 0;
+    }, 2000);
+  } else {
+    globalFlag.$patch({ immersive: true });
+  }
 });
 
 watch(
@@ -551,12 +578,13 @@ const switchMainView = (userId) => {
     channelInfo.mode = "standard";
   }
 
+  // 记录切换前的信息，用于后续调整流质量
+  const oldMainViewUserId = channelInfo.mainViewUserId;
+  const oldMainViewType = channelInfo.mainViewPreferType;
+
   channelInfo.$patch((state) => {
     // 如果点击的是当前已经在大屏显示的用户，则不处理
     if (state.mainViewUserId === userId) return;
-
-    const oldMainViewUserId = state.mainViewUserId;
-    const oldMainViewType = state.mainViewPreferType;
 
     // 设置新的主视图用户
     state.mainViewUserId = userId;
@@ -575,42 +603,56 @@ const switchMainView = (userId) => {
     }
 
     state.mainViewPreferType = preferType;
+  });
 
-    // 切换流类型
-    if (newUser) {
-      const hasValidTrack =
-        (preferType === "auxiliary" && newUser.auxiliaryTrack) ||
-        (preferType === "camera" && newUser.videoTrack);
+  // 在 Vue DOM 更新完成后再调整流质量，避免 SDK 更新 remoteUsers 与 Vue 响应式更新产生竞态
+  // 注意：setRemoteVideoStreamType 只能对远端用户调用，本地用户不能调用
+  // 在触摸设备（平板/手机）上，setRemoteVideoStreamType 会触发 stream-type-changed，
+  // SDK 在事件后销毁并重建 MediaStreamTrack，导致 iPad/iOS WebKit 上 video 无法自动恢复播放，
+  // 因此触摸设备上跳过流质量切换，保持当前分辨率不变。
+  const isTouchDevice = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+  if (!isTouchDevice) {
+    nextTick(() => {
+      const isLocalUser = (uid: string) => uid === currentUserInfo.userId;
 
-      if (hasValidTrack) {
-        client.setRemoteVideoStreamType(
-          newUser.userId,
-          "FHD",
-          preferType === "auxiliary"
-        );
-      }
-    }
-
-    // 对旧的主视图用户也进行检查
-    if (oldMainViewUserId) {
-      const oldUser = channelInfo.allUsers.find(
-        (u) => u.userId === oldMainViewUserId
-      );
-      if (oldUser) {
-        const oldHasValidTrack =
-          (oldMainViewType === "auxiliary" && oldUser.auxiliaryTrack) ||
-          (oldMainViewType === "camera" && oldUser.videoTrack);
-
-        if (oldHasValidTrack) {
-          client.setRemoteVideoStreamType(
-            oldMainViewUserId,
-            "LD",
-            oldMainViewType === "auxiliary"
-          );
+      // 新主画面用户：提升到高清（仅远端用户）
+      if (!isLocalUser(userId)) {
+        const newUser = channelInfo.remoteUsers.find((u) => u.userId === userId);
+        const preferType = channelInfo.mainViewPreferType;
+        if (newUser) {
+          const hasValidTrack =
+            (preferType === "auxiliary" && newUser.auxiliaryTrack) ||
+            (preferType === "camera" && newUser.videoTrack);
+          if (hasValidTrack) {
+            client.setRemoteVideoStreamType(
+              newUser.userId,
+              "FHD",
+              preferType === "auxiliary"
+            );
+          }
         }
       }
-    }
-  });
+
+      // 旧主画面用户：降低到低清（仅远端用户）
+      if (oldMainViewUserId && oldMainViewUserId !== userId && !isLocalUser(oldMainViewUserId)) {
+        const oldUser = channelInfo.remoteUsers.find(
+          (u) => u.userId === oldMainViewUserId
+        );
+        if (oldUser) {
+          const oldHasValidTrack =
+            (oldMainViewType === "auxiliary" && oldUser.auxiliaryTrack) ||
+            (oldMainViewType === "camera" && oldUser.videoTrack);
+          if (oldHasValidTrack) {
+            client.setRemoteVideoStreamType(
+              oldMainViewUserId,
+              "LD",
+              oldMainViewType === "auxiliary"
+            );
+          }
+        }
+      }
+    });
+  }
 };
 
 watch(
@@ -647,52 +689,55 @@ watch(
       >
       <NetworkDetector />
       <Row class="fullscreen">
-        <Tooltip
-          :arrow="false"
-          placement="bottomLeft"
-          overlayClassName="viewConfigContainer"
-          :overlay-inner-style="{ backgroundColor: 'rgba(245, 247, 250, 0.9)' }"
-        >
-          <Col class="viewConfigHot">
-            <Icon
-              :type="
-                channelInfo.mode === 'grid'
-                  ? 'icon-gallery_20'
-                  : 'icon-speaker_top_20'
-              "
-            />
-            视图
-          </Col>
-          <template #title>
-            <Row class="viewConfig">
-              <RadioGroup
-                v-model:value="channelInfo.mode"
-                :disabled="channelInfo.isWhiteboardOpen"
-              >
-                <Radio value="standard">
-                  <Icon type="icon-speaker_top_20" />
-                  标准
-                </Radio>
-                <Radio value="grid">
-                  <Icon type="icon-gallery_20" />
-                  宫格
-                </Radio>
-              </RadioGroup>
-              <Divider />
-              <Col @click="onFullScreen">
-                {{ fullscreen ? "退出全屏" : "全屏" }}
-              </Col>
-            </Row>
-          </template>
-        </Tooltip>
-        <Divider type="vertical" v-if="fullscreen" />
-        <Icon
-          class="viewConfigHot"
-          v-if="fullscreen"
-          @click="onFullScreen"
-          type="icon-XDS_Minimize"
-        />
-      </Row>
+          <Tooltip
+            :arrow="false"
+            placement="bottomLeft"
+            overlayClassName="viewConfigContainer"
+            :overlay-inner-style="{ backgroundColor: 'rgba(245, 247, 250, 0.9)' }"
+          >
+            <Col class="viewConfigHot">
+              <Icon
+                :type="
+                  channelInfo.mode === 'grid'
+                    ? 'icon-gallery_20'
+                    : 'icon-speaker_top_20'
+                "
+              />
+              视图
+            </Col>
+            <template #title>
+              <Row class="viewConfig">
+                <RadioGroup
+                  v-model:value="channelInfo.mode"
+                  :disabled="channelInfo.isWhiteboardOpen"
+                >
+                  <Radio value="standard">
+                    <Icon type="icon-speaker_top_20" />
+                    标准
+                  </Radio>
+                  <Radio value="grid">
+                    <Icon type="icon-gallery_20" />
+                    宫格
+                  </Radio>
+                </RadioGroup>
+                <!-- 仅在支持全屏 API 的设备上显示全屏选项（iOS Safari 不支持） -->
+                <template v-if="isFullscreenSupported()">
+                  <Divider />
+                  <Col @click="onFullScreen">
+                    {{ fullscreen ? "退出全屏" : "全屏" }}
+                  </Col>
+                </template>
+              </Row>
+            </template>
+          </Tooltip>
+          <Divider type="vertical" v-if="fullscreen" />
+          <Icon
+            class="viewConfigHot"
+            v-if="fullscreen"
+            @click="onFullScreen"
+            type="icon-XDS_Minimize"
+          />
+        </Row>
     </Row>
     <Space
       v-if="channelInfo.mode === 'standard' && !channelInfo.isWhiteboardOpen"

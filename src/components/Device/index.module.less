@@ -16,6 +16,20 @@
   }
 }
 
+// 触摸设备（平板/手机）：箭头点击区域放大，避免误触主图标
+.arrowTouch {
+  padding: 6px 8px;
+  border-radius: 6px;
+  // 触摸设备不需要 hover 效果
+  &:hover {
+    background-color: transparent;
+  }
+  // 触摸时给一个按下反馈
+  &:active {
+    background-color: rgba(0, 0, 0, 0.1);
+  }
+}
+
 .tooltip {
   border-radius: 8px;
   min-width: 160px;

@@ -1,6 +1,6 @@
 import DingRTC from 'dingrtc';
 import { defineStore } from 'pinia';
-import { isIOS, isMac, isMobile, isWeixin, logLevel, parseSearch } from './utils/tools';
+import { isIOS, isMac, isMobile, isWeixin, isTouchDevice, logLevel, parseSearch } from './utils/tools';
 import { getAppConfig } from '~/utils/appConfig';
 import { RtcWhiteboard, WhiteboardManager } from '@dingrtc/whiteboard';
 import ASR from 'dingrtc-asr';
@@ -138,6 +138,8 @@ interface IGlobalFlag {
   joined: boolean;
   immersive: boolean;
   isMobile: boolean;
+  /** 是否为触摸设备（手机或平板），使用媒体查询而非 UA，可正确识别 iPad */
+  isTouch: boolean;
   hideLog: boolean;
   env: string;
   isIOS: boolean;
@@ -309,17 +311,12 @@ export const useChannelInfo = defineStore('IChannelInfo', {
         : auxiliaryTrack || videoTrack;
     },
     getTrack() {
-      const self = this;
       return (user: RemoteUser): RemoteVideoTrack => {
-        // 检查轨道是否有效，避免返回无效的轨道对象
+        // 小画面始终返回用户的主要轨道（屏幕共享优先，否则摄像头）
+        // 不依赖 mainViewUserId，避免切换主画面时因 mainViewUserId 变化
+        // 导致 SmallView props.track 改变 → 触发 watch → 错误 stop/play
         const videoTrack = (user.videoTrack && !user.videoMuted) ? user.videoTrack : null;
         const auxiliaryTrack = (user.auxiliaryTrack && !user.auxiliaryMuted) ? user.auxiliaryTrack : null;
-        
-        if (self.mainViewUserId === user.userId && self.mode === 'standard') {
-          return self.mainViewPreferType === 'camera'
-            ? auxiliaryTrack || videoTrack
-            : videoTrack || auxiliaryTrack;
-        }
         return auxiliaryTrack || videoTrack;
       };
     },
@@ -369,6 +366,7 @@ export const useGlobalFlag = defineStore('IGlobalFlag', {
     joined: false,
     immersive: false,
     isMobile: !!isMobile(),
+    isTouch: isTouchDevice(),
     hideLog: logLevel === 'none',
     env: parseSearch('env') || getAppConfig().env || '',
     isIOS: !!isIOS(),
